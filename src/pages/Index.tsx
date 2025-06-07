@@ -26,8 +26,11 @@ const Index = () => {
 
   const handleSearchChange = (searchText: string, selectedTags: string[], filterMode: "and" | "or") => {
     setSearchState({ searchText, selectedTags, filterMode });
-    
-    // Add to history when search changes (if there's actual search content)
+  };
+
+  const handleSearchSubmit = () => {
+    const { searchText, selectedTags, filterMode } = searchState;
+    // Add to history when search is submitted (if there's actual search content)
     if (searchText.trim() || selectedTags.length > 0) {
       addSearchToHistory(searchText, selectedTags, filterMode);
     }
@@ -50,6 +53,7 @@ const Index = () => {
               <SnippetManager 
                 externalSearchState={searchState}
                 onSearchChange={handleSearchChange}
+                onSearchSubmit={handleSearchSubmit}
               />
             </div>
           </div>

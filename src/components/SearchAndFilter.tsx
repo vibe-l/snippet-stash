@@ -1,11 +1,13 @@
 
-import React from "react";
+import React, { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Search, Filter, X } from "lucide-react";
+import { Search, Filter, X, Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface SearchAndFilterProps {
   searchText: string;
@@ -15,6 +17,7 @@ interface SearchAndFilterProps {
   filterMode: "and" | "or";
   setFilterMode: (mode: "and" | "or") => void;
   availableTags: string[];
+  onSearchSubmit?: () => void;
 }
 
 const SearchAndFilter: React.FC<SearchAndFilterProps> = ({
@@ -25,7 +28,10 @@ const SearchAndFilter: React.FC<SearchAndFilterProps> = ({
   filterMode,
   setFilterMode,
   availableTags,
+  onSearchSubmit,
 }) => {
+  const [tagFilterOpen, setTagFilterOpen] = useState(false);
+
   const toggleTag = (tag: string) => {
     if (selectedTags.includes(tag)) {
       setSelectedTags(selectedTags.filter(t => t !== tag));
@@ -39,64 +45,81 @@ const SearchAndFilter: React.FC<SearchAndFilterProps> = ({
     setSelectedTags([]);
   };
 
+  const handleSearchKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && onSearchSubmit) {
+      onSearchSubmit();
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
           <Input
-            placeholder="Search snippets..."
+            placeholder="Search snippets... (Press Enter to save to history)"
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
+            onKeyDown={handleSearchKeyPress}
             className="pl-10"
           />
         </div>
         
         <div className="flex gap-2">
-          <Popover>
+          <Popover open={tagFilterOpen} onOpenChange={setTagFilterOpen}>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="flex items-center gap-2">
-                <Filter className="w-4 h-4" />
-                Tags ({selectedTags.length})
+              <Button variant="outline" className="flex items-center gap-2 justify-between min-w-[120px]">
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4" />
+                  Tags ({selectedTags.length})
+                </div>
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-80">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-medium">Filter by Tags</h4>
-                  <div className="flex gap-1">
-                    <Button
-                      size="sm"
-                      variant={filterMode === "or" ? "default" : "outline"}
-                      onClick={() => setFilterMode("or")}
-                    >
-                      OR
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={filterMode === "and" ? "default" : "outline"}
-                      onClick={() => setFilterMode("and")}
-                    >
-                      AND
-                    </Button>
-                  </div>
-                </div>
-                
-                <div className="max-h-60 overflow-y-auto space-y-2">
-                  {availableTags.map(tag => (
-                    <div key={tag} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={tag}
-                        checked={selectedTags.includes(tag)}
-                        onCheckedChange={() => toggleTag(tag)}
-                      />
-                      <label htmlFor={tag} className="text-sm cursor-pointer flex-1">
-                        {tag}
-                      </label>
+            <PopoverContent className="w-80 p-0">
+              <Command>
+                <CommandInput placeholder="Search tags..." />
+                <CommandList>
+                  <CommandEmpty>No tags found.</CommandEmpty>
+                  <CommandGroup>
+                    <div className="flex items-center justify-between p-2 border-b">
+                      <h4 className="font-medium">Filter Mode</h4>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant={filterMode === "or" ? "default" : "outline"}
+                          onClick={() => setFilterMode("or")}
+                        >
+                          OR
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={filterMode === "and" ? "default" : "outline"}
+                          onClick={() => setFilterMode("and")}
+                        >
+                          AND
+                        </Button>
+                      </div>
                     </div>
-                  ))}
-                </div>
-              </div>
+                    {availableTags.map(tag => (
+                      <CommandItem
+                        key={tag}
+                        onSelect={() => toggleTag(tag)}
+                        className="flex items-center space-x-2"
+                      >
+                        <Checkbox
+                          checked={selectedTags.includes(tag)}
+                          onChange={() => toggleTag(tag)}
+                        />
+                        <span className="flex-1">{tag}</span>
+                        {selectedTags.includes(tag) && (
+                          <Check className="h-4 w-4" />
+                        )}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
             </PopoverContent>
           </Popover>
           

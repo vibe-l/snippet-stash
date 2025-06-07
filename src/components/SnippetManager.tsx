@@ -16,11 +16,13 @@ interface SnippetManagerProps {
     filterMode: "and" | "or";
   };
   onSearchChange?: (searchText: string, selectedTags: string[], filterMode: "and" | "or") => void;
+  onSearchSubmit?: () => void;
 }
 
 const SnippetManager: React.FC<SnippetManagerProps> = ({ 
   externalSearchState, 
-  onSearchChange 
+  onSearchChange,
+  onSearchSubmit
 }) => {
   const [snippets, setSnippets] = useState<Snippet[]>([]);
   const [searchText, setSearchText] = useState("");
@@ -219,6 +221,7 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
           filterMode={effectiveFilterMode}
           setFilterMode={handleFilterModeChange}
           availableTags={getAvailableTags()}
+          onSearchSubmit={onSearchSubmit}
         />
       </Card>
 
