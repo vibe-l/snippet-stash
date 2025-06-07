@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -10,12 +9,38 @@ import { loadSnippets, saveSnippets, createExampleSnippets } from "@/utils/snipp
 import { Snippet } from "@/types/snippet";
 import FlexSearch from "flexsearch";
 
-const SnippetManager = () => {
+interface SnippetManagerProps {
+  externalSearchState?: {
+    searchText: string;
+    selectedTags: string[];
+    filterMode: "and" | "or";
+  };
+  onSearchChange?: (searchText: string, selectedTags: string[], filterMode: "and" | "or") => void;
+}
+
+const SnippetManager: React.FC<SnippetManagerProps> = ({ 
+  externalSearchState, 
+  onSearchChange 
+}) => {
   const [snippets, setSnippets] = useState<Snippet[]>([]);
   const [searchText, setSearchText] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [filterMode, setFilterMode] = useState<"and" | "or">("or");
   const [showTagManager, setShowTagManager] = useState(false);
+
+  // Use external search state if provided
+  const effectiveSearchText = externalSearchState?.searchText ?? searchText;
+  const effectiveSelectedTags = externalSearchState?.selectedTags ?? selectedTags;
+  const effectiveFilterMode = externalSearchState?.filterMode ?? filterMode;
+
+  // Update internal state when external state changes
+  useEffect(() => {
+    if (externalSearchState) {
+      setSearchText(externalSearchState.searchText);
+      setSelectedTags(externalSearchState.selectedTags);
+      setFilterMode(externalSearchState.filterMode);
+    }
+  }, [externalSearchState]);
 
   // Create FlexSearch index
   const searchIndex = useMemo(() => {
@@ -42,6 +67,27 @@ const SnippetManager = () => {
       setSnippets(loadedSnippets);
     }
   }, []);
+
+  const handleSearchTextChange = (newSearchText: string) => {
+    setSearchText(newSearchText);
+    if (onSearchChange) {
+      onSearchChange(newSearchText, effectiveSelectedTags, effectiveFilterMode);
+    }
+  };
+
+  const handleSelectedTagsChange = (newSelectedTags: string[]) => {
+    setSelectedTags(newSelectedTags);
+    if (onSearchChange) {
+      onSearchChange(effectiveSearchText, newSelectedTags, effectiveFilterMode);
+    }
+  };
+
+  const handleFilterModeChange = (newFilterMode: "and" | "or") => {
+    setFilterMode(newFilterMode);
+    if (onSearchChange) {
+      onSearchChange(effectiveSearchText, effectiveSelectedTags, newFilterMode);
+    }
+  };
 
   const addNewSnippet = () => {
     const newSnippet: Snippet = {
@@ -114,32 +160,32 @@ const SnippetManager = () => {
     let results = snippets;
 
     // Apply text search using FlexSearch
-    if (searchText.trim()) {
-      const searchResults = searchIndex.search(searchText);
+    if (effectiveSearchText.trim()) {
+      const searchResults = searchIndex.search(effectiveSearchText);
       results = searchResults.map(index => snippets[index as number]);
     }
 
     // Apply tag filtering
-    if (selectedTags.length > 0) {
+    if (effectiveSelectedTags.length > 0) {
       results = results.filter(snippet => {
-        return filterMode === "or" 
-          ? selectedTags.some(tag => snippet.tags.includes(tag))
-          : selectedTags.every(tag => snippet.tags.includes(tag));
+        return effectiveFilterMode === "or" 
+          ? effectiveSelectedTags.some(tag => snippet.tags.includes(tag))
+          : effectiveSelectedTags.every(tag => snippet.tags.includes(tag));
       });
     }
 
     return results;
-  }, [snippets, searchText, selectedTags, filterMode, searchIndex]);
+  }, [snippets, effectiveSearchText, effectiveSelectedTags, effectiveFilterMode, searchIndex]);
 
   // Get available tags for "and" mode filtering
   const getAvailableTags = () => {
-    if (filterMode === "or" || selectedTags.length === 0) {
+    if (effectiveFilterMode === "or" || effectiveSelectedTags.length === 0) {
       return allTags;
     }
     
     // In "and" mode, only show tags that appear together with currently selected tags
     const snippetsWithSelectedTags = snippets.filter(snippet =>
-      selectedTags.every(tag => snippet.tags.includes(tag))
+      effectiveSelectedTags.every(tag => snippet.tags.includes(tag))
     );
     
     return Array.from(new Set(
@@ -166,12 +212,12 @@ const SnippetManager = () => {
         </div>
 
         <SearchAndFilter
-          searchText={searchText}
-          setSearchText={setSearchText}
-          selectedTags={selectedTags}
-          setSelectedTags={setSelectedTags}
-          filterMode={filterMode}
-          setFilterMode={setFilterMode}
+          searchText={effectiveSearchText}
+          setSearchText={handleSearchTextChange}
+          selectedTags={effectiveSelectedTags}
+          setSelectedTags={handleSelectedTagsChange}
+          filterMode={effectiveFilterMode}
+          setFilterMode={handleFilterModeChange}
           availableTags={getAvailableTags()}
         />
       </Card>
