@@ -16,58 +16,78 @@ import {
 } from "@/components/ui/sidebar";
 import { Trash2, Search, Clock } from "lucide-react";
 import { SearchHistoryEntry } from "@/types/searchHistory";
-import { loadSearchHistory, deleteSearchHistoryEntry, clearSearchHistory } from "@/utils/searchHistoryStorage";
 import { formatDistanceToNow } from "date-fns";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface SearchHistoryPanelProps {
   onRestoreSearch: (entry: SearchHistoryEntry) => void;
 }
 
 const SearchHistoryPanel: React.FC<SearchHistoryPanelProps> = ({ onRestoreSearch }) => {
-  const [history, setHistory] = React.useState(loadSearchHistory());
+  const { toast } = useToast();
 
-  const refreshHistory = () => {
-    setHistory(loadSearchHistory());
-  };
+  // Fetch search history from database
+  const { data: history = [], refetch } = useQuery<SearchHistoryEntry[]>({
+    queryKey: ["/api/search-history"],
+  });
+
+  // Delete search history entry mutation
+  const deleteEntryMutation = useMutation({
+    mutationFn: (id: number) =>
+      apiRequest(`/api/search-history/${id}`, {
+        method: "DELETE"
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/search-history"] });
+      toast({ title: "Search history entry deleted" });
+    },
+    onError: () => {
+      toast({ title: "Failed to delete search history entry", variant: "destructive" });
+    }
+  });
+
+  // Clear all search history mutation
+  const clearAllMutation = useMutation({
+    mutationFn: () =>
+      apiRequest("/api/search-history", {
+        method: "DELETE"
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/search-history"] });
+      toast({ title: "Search history cleared" });
+    },
+    onError: () => {
+      toast({ title: "Failed to clear search history", variant: "destructive" });
+    }
+  });
 
   React.useEffect(() => {
-    // Refresh on mount
-    refreshHistory();
-    
-    // Listen for storage changes to refresh history
-    const handleStorageChange = () => {
-      refreshHistory();
-    };
-    
-    window.addEventListener("storage", handleStorageChange);
-    
-    // Also listen for a custom event to refresh when same-tab changes occur
+    // Listen for a custom event to refresh when same-tab changes occur
     const handleRefresh = () => {
-      refreshHistory();
+      refetch();
     };
     
     window.addEventListener("searchHistoryRefresh", handleRefresh);
     
     return () => {
-      window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("searchHistoryRefresh", handleRefresh);
     };
-  }, []);
+  }, [refetch]);
 
-  const handleDeleteEntry = (entryId: string, e: React.MouseEvent) => {
+  const handleDeleteEntry = (entryId: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    deleteSearchHistoryEntry(entryId);
-    refreshHistory();
+    deleteEntryMutation.mutate(entryId);
   };
 
   const handleClearAll = () => {
-    clearSearchHistory();
-    refreshHistory();
+    clearAllMutation.mutate();
   };
 
   const handleRestoreSearch = (entry: SearchHistoryEntry) => {
     onRestoreSearch(entry);
-    refreshHistory(); // Refresh to show updated scores
+    // Note: The backend will handle score updates when history entries are used
   };
 
   const formatLastUsed = (dateString: string) => {
@@ -104,14 +124,14 @@ const SearchHistoryPanel: React.FC<SearchHistoryPanelProps> = ({ onRestoreSearch
           <SidebarGroupLabel>Recent Searches</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {history.entries.length === 0 ? (
+              {history.length === 0 ? (
                 <div className="p-4 text-center text-muted-foreground text-sm">
                   <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
                   <p>No search history yet.</p>
                   <p className="text-xs mt-1">Your searches will appear here.</p>
                 </div>
               ) : (
-                history.entries.map((entry) => (
+                history.map((entry) => (
                   <SidebarMenuItem key={entry.id}>
                     <Card className="p-3 cursor-pointer hover:bg-accent transition-colors">
                       <SidebarMenuButton 

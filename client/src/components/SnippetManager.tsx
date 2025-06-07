@@ -47,7 +47,7 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
   }, [externalSearchState]);
 
   // Fetch snippets from database
-  const { data: snippets = [], isLoading, refetch } = useQuery({
+  const { data: snippets = [], isLoading, refetch } = useQuery<Snippet[]>({
     queryKey: ["/api/snippets"],
   });
 
@@ -87,64 +87,121 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
     }
   };
 
+  // Mutations
+  const createSnippetMutation = useMutation({
+    mutationFn: (snippet: { body: string; tags: string[] }) => 
+      apiRequest("/api/snippets", {
+        method: "POST",
+        body: JSON.stringify(snippet)
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/snippets"] });
+      toast({ title: "Snippet created successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to create snippet", variant: "destructive" });
+    }
+  });
+
+  const updateSnippetMutation = useMutation({
+    mutationFn: ({ id, snippet }: { id: number; snippet: { body: string; tags: string[] } }) =>
+      apiRequest(`/api/snippets/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(snippet)
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/snippets"] });
+      toast({ title: "Snippet updated successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to update snippet", variant: "destructive" });
+    }
+  });
+
+  const deleteSnippetMutation = useMutation({
+    mutationFn: (id: number) =>
+      apiRequest(`/api/snippets/${id}`, {
+        method: "DELETE"
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/snippets"] });
+      toast({ title: "Snippet deleted successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to delete snippet", variant: "destructive" });
+    }
+  });
+
+  const updateSnippetUsageMutation = useMutation({
+    mutationFn: (id: number) =>
+      apiRequest(`/api/snippets/${id}/use`, {
+        method: "POST"
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/snippets"] });
+    }
+  });
+
   const addNewSnippet = () => {
-    const newSnippet: Snippet = {
-      id: Date.now().toString(),
+    createSnippetMutation.mutate({
       body: "",
-      tags: [],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      used_at: null,
-    };
-    const updatedSnippets = [newSnippet, ...snippets];
-    setSnippets(updatedSnippets);
-    saveSnippets(updatedSnippets);
+      tags: []
+    });
   };
 
   const updateSnippet = (updatedSnippet: Snippet) => {
-    const updatedSnippets = snippets.map(snippet =>
-      snippet.id === updatedSnippet.id ? updatedSnippet : snippet
-    );
-    setSnippets(updatedSnippets);
-    saveSnippets(updatedSnippets);
+    updateSnippetMutation.mutate({
+      id: updatedSnippet.id,
+      snippet: {
+        body: updatedSnippet.body,
+        tags: updatedSnippet.tags
+      }
+    });
   };
 
-  const deleteSnippet = (id: string) => {
-    const updatedSnippets = snippets.filter(snippet => snippet.id !== id);
-    setSnippets(updatedSnippets);
-    saveSnippets(updatedSnippets);
+  const deleteSnippet = (id: number) => {
+    deleteSnippetMutation.mutate(id);
   };
 
   const copySnippet = (snippet: Snippet) => {
     navigator.clipboard.writeText(snippet.body);
-    const updatedSnippet = {
-      ...snippet,
-      used_at: new Date().toISOString(),
-    };
-    updateSnippet(updatedSnippet);
+    updateSnippetUsageMutation.mutate(snippet.id);
+    toast({ title: "Snippet copied to clipboard" });
   };
 
   const renameTag = (oldTag: string, newTag: string) => {
-    const updatedSnippets = snippets.map(snippet => ({
-      ...snippet,
-      tags: snippet.tags.map(tag => tag === oldTag ? newTag : tag),
-      updated_at: snippet.tags.includes(oldTag) ? new Date().toISOString() : snippet.updated_at,
-    }));
-    setSnippets(updatedSnippets);
-    saveSnippets(updatedSnippets);
+    // Update all snippets that contain the old tag
+    snippets.forEach(snippet => {
+      if (snippet.tags.includes(oldTag)) {
+        const updatedTags = snippet.tags.map(tag => tag === oldTag ? newTag : tag);
+        updateSnippetMutation.mutate({
+          id: snippet.id,
+          snippet: {
+            body: snippet.body,
+            tags: updatedTags
+          }
+        });
+      }
+    });
 
     // Update selected tags
     setSelectedTags(tags => tags.map(tag => tag === oldTag ? newTag : tag));
   };
 
   const deleteTag = (tagToDelete: string) => {
-    const updatedSnippets = snippets.map(snippet => ({
-      ...snippet,
-      tags: snippet.tags.filter(tag => tag !== tagToDelete),
-      updated_at: snippet.tags.includes(tagToDelete) ? new Date().toISOString() : snippet.updated_at,
-    }));
-    setSnippets(updatedSnippets);
-    saveSnippets(updatedSnippets);
+    // Update all snippets that contain the tag
+    snippets.forEach(snippet => {
+      if (snippet.tags.includes(tagToDelete)) {
+        const updatedTags = snippet.tags.filter(tag => tag !== tagToDelete);
+        updateSnippetMutation.mutate({
+          id: snippet.id,
+          snippet: {
+            body: snippet.body,
+            tags: updatedTags
+          }
+        });
+      }
+    });
 
     // Remove from selected tags
     setSelectedTags(tags => tags.filter(tag => tag !== tagToDelete));

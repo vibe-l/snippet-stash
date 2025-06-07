@@ -6,7 +6,7 @@ import { Snippet } from "@/types/snippet";
 interface SnippetListProps {
   snippets: Snippet[];
   onUpdate: (snippet: Snippet) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: number) => void;
   onCopy: (snippet: Snippet) => void;
   allTags: string[];
 }

@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 interface SnippetItemProps {
   snippet: Snippet;
   onUpdate: (snippet: Snippet) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: number) => void;
   onCopy: (snippet: Snippet) => void;
   allTags: string[];
 }
