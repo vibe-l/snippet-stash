@@ -3,7 +3,8 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/s
 import SnippetManager from "@/components/SnippetManager";
 import SearchHistoryPanel from "@/components/SearchHistoryPanel";
 import { SearchHistoryEntry } from "@/types/searchHistory";
-import { addSearchToHistory } from "@/utils/searchHistoryStorage";
+import { useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import React, { useState } from "react";
 
 const Index = () => {
@@ -11,6 +12,20 @@ const Index = () => {
     searchText: "",
     selectedTags: [] as string[],
     filterMode: "or" as "and" | "or"
+  });
+
+  // Search history mutation
+  const addSearchHistoryMutation = useMutation({
+    mutationFn: (search: { query: string; selected_tags: string[]; filter_mode: "and" | "or"; score: number }) =>
+      apiRequest("/api/search-history", {
+        method: "POST",
+        body: JSON.stringify(search)
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/search-history"] });
+      // Trigger custom event to notify the SearchHistoryPanel to refresh
+      window.dispatchEvent(new Event('searchHistoryRefresh'));
+    }
   });
 
   const handleRestoreSearch = (entry: SearchHistoryEntry) => {
@@ -21,7 +36,12 @@ const Index = () => {
     });
     
     // Add to history when restoring (increases frecency score)
-    addSearchToHistory(entry.query, entry.selected_tags, entry.filter_mode);
+    addSearchHistoryMutation.mutate({
+      query: entry.query,
+      selected_tags: entry.selected_tags,
+      filter_mode: entry.filter_mode,
+      score: entry.score + 1
+    });
   };
 
   const handleSearchChange = (searchText: string, selectedTags: string[], filterMode: "and" | "or") => {
@@ -32,9 +52,12 @@ const Index = () => {
     const { searchText, selectedTags, filterMode } = searchState;
     // Add to history when search is submitted (if there's actual search content)
     if (searchText.trim() || selectedTags.length > 0) {
-      addSearchToHistory(searchText, selectedTags, filterMode);
-      // Trigger custom event to notify the SearchHistoryPanel to refresh
-      window.dispatchEvent(new Event('searchHistoryRefresh'));
+      addSearchHistoryMutation.mutate({
+        query: searchText,
+        selected_tags: selectedTags,
+        filter_mode: filterMode,
+        score: 1
+      });
     }
   };
 
