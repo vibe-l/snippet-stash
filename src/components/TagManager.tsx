@@ -3,17 +3,19 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Edit, Check, X } from "lucide-react";
+import { Edit, Check, X, Trash2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 interface TagManagerProps {
   tags: string[];
   onRename: (oldTag: string, newTag: string) => void;
+  onDelete: (tag: string) => void;
   onClose: () => void;
 }
 
-const TagManager: React.FC<TagManagerProps> = ({ tags, onRename, onClose }) => {
+const TagManager: React.FC<TagManagerProps> = ({ tags, onRename, onDelete, onClose }) => {
   const [editingTag, setEditingTag] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
 
@@ -55,6 +57,14 @@ const TagManager: React.FC<TagManagerProps> = ({ tags, onRename, onClose }) => {
     }
   };
 
+  const handleDeleteTag = (tag: string) => {
+    onDelete(tag);
+    toast({
+      title: "Tag deleted",
+      description: `Tag "${tag}" has been deleted from all snippets.`,
+    });
+  };
+
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-md">
@@ -94,6 +104,27 @@ const TagManager: React.FC<TagManagerProps> = ({ tags, onRename, onClose }) => {
                     >
                       <Edit className="w-4 h-4" />
                     </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button size="sm" variant="outline">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Tag</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to delete the tag "{tag}"? This will remove it from all snippets and cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleDeleteTag(tag)}>
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </>
                 )}
               </div>

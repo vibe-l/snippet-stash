@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Plus } from "lucide-react";
@@ -8,6 +8,7 @@ import SnippetList from "./SnippetList";
 import TagManager from "./TagManager";
 import { loadSnippets, saveSnippets, createExampleSnippets } from "@/utils/snippetStorage";
 import { Snippet } from "@/types/snippet";
+import FlexSearch from "flexsearch";
 
 const SnippetManager = () => {
   const [snippets, setSnippets] = useState<Snippet[]>([]);
@@ -15,6 +16,21 @@ const SnippetManager = () => {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [filterMode, setFilterMode] = useState<"and" | "or">("or");
   const [showTagManager, setShowTagManager] = useState(false);
+
+  // Create FlexSearch index
+  const searchIndex = useMemo(() => {
+    const index = new FlexSearch.Index({
+      tokenize: "forward",
+      resolution: 9,
+    });
+    
+    snippets.forEach((snippet, i) => {
+      const searchableText = `${snippet.body} ${snippet.tags.join(" ")}`;
+      index.add(i, searchableText);
+    });
+    
+    return index;
+  }, [snippets]);
 
   useEffect(() => {
     const loadedSnippets = loadSnippets();
@@ -77,23 +93,43 @@ const SnippetManager = () => {
     setSelectedTags(tags => tags.map(tag => tag === oldTag ? newTag : tag));
   };
 
+  const deleteTag = (tagToDelete: string) => {
+    const updatedSnippets = snippets.map(snippet => ({
+      ...snippet,
+      tags: snippet.tags.filter(tag => tag !== tagToDelete),
+      updated_at: snippet.tags.includes(tagToDelete) ? new Date().toISOString() : snippet.updated_at,
+    }));
+    setSnippets(updatedSnippets);
+    saveSnippets(updatedSnippets);
+
+    // Remove from selected tags
+    setSelectedTags(tags => tags.filter(tag => tag !== tagToDelete));
+  };
+
   // Get all unique tags
   const allTags = Array.from(new Set(snippets.flatMap(snippet => snippet.tags))).sort();
 
-  // Filter snippets based on search and tags
-  const filteredSnippets = snippets.filter(snippet => {
-    const matchesSearch = searchText === "" || 
-      snippet.body.toLowerCase().includes(searchText.toLowerCase()) ||
-      snippet.tags.some(tag => tag.toLowerCase().includes(searchText.toLowerCase()));
+  // Filter snippets using FlexSearch and tags
+  const filteredSnippets = useMemo(() => {
+    let results = snippets;
 
-    const matchesTags = selectedTags.length === 0 || (
-      filterMode === "or" 
-        ? selectedTags.some(tag => snippet.tags.includes(tag))
-        : selectedTags.every(tag => snippet.tags.includes(tag))
-    );
+    // Apply text search using FlexSearch
+    if (searchText.trim()) {
+      const searchResults = searchIndex.search(searchText);
+      results = searchResults.map(index => snippets[index as number]);
+    }
 
-    return matchesSearch && matchesTags;
-  });
+    // Apply tag filtering
+    if (selectedTags.length > 0) {
+      results = results.filter(snippet => {
+        return filterMode === "or" 
+          ? selectedTags.some(tag => snippet.tags.includes(tag))
+          : selectedTags.every(tag => snippet.tags.includes(tag));
+      });
+    }
+
+    return results;
+  }, [snippets, searchText, selectedTags, filterMode, searchIndex]);
 
   // Get available tags for "and" mode filtering
   const getAvailableTags = () => {
@@ -152,6 +188,7 @@ const SnippetManager = () => {
         <TagManager
           tags={allTags}
           onRename={renameTag}
+          onDelete={deleteTag}
           onClose={() => setShowTagManager(false)}
         />
       )}
