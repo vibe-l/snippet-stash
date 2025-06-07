@@ -31,13 +31,27 @@ const SearchHistoryPanel: React.FC<SearchHistoryPanelProps> = ({ onRestoreSearch
   };
 
   React.useEffect(() => {
+    // Refresh on mount
+    refreshHistory();
+    
     // Listen for storage changes to refresh history
     const handleStorageChange = () => {
       refreshHistory();
     };
     
     window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
+    
+    // Also listen for a custom event to refresh when same-tab changes occur
+    const handleRefresh = () => {
+      refreshHistory();
+    };
+    
+    window.addEventListener("searchHistoryRefresh", handleRefresh);
+    
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("searchHistoryRefresh", handleRefresh);
+    };
   }, []);
 
   const handleDeleteEntry = (entryId: string, e: React.MouseEvent) => {

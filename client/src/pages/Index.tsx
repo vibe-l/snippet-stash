@@ -33,6 +33,8 @@ const Index = () => {
     // Add to history when search is submitted (if there's actual search content)
     if (searchText.trim() || selectedTags.length > 0) {
       addSearchToHistory(searchText, selectedTags, filterMode);
+      // Trigger custom event to notify the SearchHistoryPanel to refresh
+      window.dispatchEvent(new Event('searchHistoryRefresh'));
     }
   };
 
