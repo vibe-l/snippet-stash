@@ -5,9 +5,11 @@ import { Plus } from "lucide-react";
 import SearchAndFilter from "./SearchAndFilter";
 import SnippetList from "./SnippetList";
 import TagManager from "./TagManager";
-import { loadSnippets, saveSnippets, createExampleSnippets } from "@/utils/snippetStorage";
 import { Snippet } from "@/types/snippet";
 import FlexSearch from "flexsearch";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface SnippetManagerProps {
   externalSearchState?: {
@@ -24,11 +26,11 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
   onSearchChange,
   onSearchSubmit
 }) => {
-  const [snippets, setSnippets] = useState<Snippet[]>([]);
   const [searchText, setSearchText] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [filterMode, setFilterMode] = useState<"and" | "or">("or");
   const [showTagManager, setShowTagManager] = useState(false);
+  const { toast } = useToast();
 
   // Use external search state if provided
   const effectiveSearchText = externalSearchState?.searchText ?? searchText;
@@ -44,6 +46,11 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
     }
   }, [externalSearchState]);
 
+  // Fetch snippets from database
+  const { data: snippets = [], isLoading, refetch } = useQuery({
+    queryKey: ["/api/snippets"],
+  });
+
   // Create FlexSearch index
   const searchIndex = useMemo(() => {
     const index = new FlexSearch.Index({
@@ -58,17 +65,6 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
     
     return index;
   }, [snippets]);
-
-  useEffect(() => {
-    const loadedSnippets = loadSnippets();
-    if (loadedSnippets.length === 0) {
-      const exampleSnippets = createExampleSnippets();
-      setSnippets(exampleSnippets);
-      saveSnippets(exampleSnippets);
-    } else {
-      setSnippets(loadedSnippets);
-    }
-  }, []);
 
   const handleSearchTextChange = (newSearchText: string) => {
     setSearchText(newSearchText);

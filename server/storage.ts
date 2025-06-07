@@ -1,39 +1,127 @@
-import { users, type User, type InsertUser } from "@shared/schema";
-
-// modify the interface with any CRUD methods
-// you might need
+import { 
+  users, 
+  snippets, 
+  searchHistory,
+  type User, 
+  type InsertUser,
+  type Snippet,
+  type InsertSnippet,
+  type SearchHistory,
+  type InsertSearchHistory
+} from "@shared/schema";
+import { db } from "./db";
+import { eq, desc, sql } from "drizzle-orm";
 
 export interface IStorage {
+  // User methods
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  
+  // Snippet methods
+  getSnippets(): Promise<Snippet[]>;
+  getSnippet(id: number): Promise<Snippet | undefined>;
+  createSnippet(snippet: InsertSnippet): Promise<Snippet>;
+  updateSnippet(id: number, snippet: Partial<InsertSnippet>): Promise<Snippet>;
+  deleteSnippet(id: number): Promise<void>;
+  updateSnippetUsage(id: number): Promise<void>;
+  
+  // Search history methods
+  getSearchHistory(): Promise<SearchHistory[]>;
+  addSearchHistory(search: InsertSearchHistory): Promise<SearchHistory>;
+  updateSearchHistoryScore(id: number, score: number): Promise<void>;
+  deleteSearchHistory(id: number): Promise<void>;
+  clearSearchHistory(): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  currentId: number;
-
-  constructor() {
-    this.users = new Map();
-    this.currentId = 1;
-  }
-
+export class DatabaseStorage implements IStorage {
+  // User methods
   async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user || undefined;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = this.currentId++;
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
+    const [user] = await db
+      .insert(users)
+      .values(insertUser)
+      .returning();
     return user;
+  }
+
+  // Snippet methods
+  async getSnippets(): Promise<Snippet[]> {
+    return db.select().from(snippets).orderBy(desc(snippets.updated_at));
+  }
+
+  async getSnippet(id: number): Promise<Snippet | undefined> {
+    const [snippet] = await db.select().from(snippets).where(eq(snippets.id, id));
+    return snippet || undefined;
+  }
+
+  async createSnippet(snippet: InsertSnippet): Promise<Snippet> {
+    const [newSnippet] = await db
+      .insert(snippets)
+      .values(snippet)
+      .returning();
+    return newSnippet;
+  }
+
+  async updateSnippet(id: number, snippet: Partial<InsertSnippet>): Promise<Snippet> {
+    const [updatedSnippet] = await db
+      .update(snippets)
+      .set({ ...snippet, updated_at: sql`NOW()` })
+      .where(eq(snippets.id, id))
+      .returning();
+    return updatedSnippet;
+  }
+
+  async deleteSnippet(id: number): Promise<void> {
+    await db.delete(snippets).where(eq(snippets.id, id));
+  }
+
+  async updateSnippetUsage(id: number): Promise<void> {
+    await db
+      .update(snippets)
+      .set({ used_at: sql`NOW()` })
+      .where(eq(snippets.id, id));
+  }
+
+  // Search history methods
+  async getSearchHistory(): Promise<SearchHistory[]> {
+    return db.select().from(searchHistory).orderBy(desc(searchHistory.score));
+  }
+
+  async addSearchHistory(search: InsertSearchHistory): Promise<SearchHistory> {
+    const [newSearch] = await db
+      .insert(searchHistory)
+      .values(search)
+      .returning();
+    return newSearch;
+  }
+
+  async updateSearchHistoryScore(id: number, score: number): Promise<void> {
+    await db
+      .update(searchHistory)
+      .set({ 
+        score, 
+        last_used_at: sql`NOW()` 
+      })
+      .where(eq(searchHistory.id, id));
+  }
+
+  async deleteSearchHistory(id: number): Promise<void> {
+    await db.delete(searchHistory).where(eq(searchHistory.id, id));
+  }
+
+  async clearSearchHistory(): Promise<void> {
+    await db.delete(searchHistory);
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

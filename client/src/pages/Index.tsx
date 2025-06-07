@@ -16,12 +16,12 @@ const Index = () => {
   const handleRestoreSearch = (entry: SearchHistoryEntry) => {
     setSearchState({
       searchText: entry.query,
-      selectedTags: entry.selectedTags,
-      filterMode: entry.filterMode
+      selectedTags: entry.selected_tags,
+      filterMode: entry.filter_mode
     });
     
     // Add to history when restoring (increases frecency score)
-    addSearchToHistory(entry.query, entry.selectedTags, entry.filterMode);
+    addSearchToHistory(entry.query, entry.selected_tags, entry.filter_mode);
   };
 
   const handleSearchChange = (searchText: string, selectedTags: string[], filterMode: "and" | "or") => {

@@ -1,12 +1,12 @@
 
 export interface SearchHistoryEntry {
-  id: string;
+  id: number;
   query: string;
-  selectedTags: string[];
-  filterMode: "and" | "or";
+  selected_tags: string[];
+  filter_mode: "and" | "or";
   score: number;
-  created_at: string;
-  last_used_at: string;
+  created_at: Date;
+  last_used_at: Date;
 }
 
 export interface SearchHistoryState {

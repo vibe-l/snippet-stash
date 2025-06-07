@@ -1,9 +1,9 @@
 
 export interface Snippet {
-  id: string;
+  id: number;
   body: string;
   tags: string[];
-  created_at: string;
-  updated_at: string;
-  used_at: string | null;
+  created_at: Date;
+  updated_at: Date;
+  used_at: Date | null;
 }
