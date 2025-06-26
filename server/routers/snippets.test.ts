@@ -33,4 +33,91 @@ describe('Snippet Router - Integration Tests', () => {
     expect(result).toEqual(mockSnippets);
     expect(storage.getSnippets).toHaveBeenCalledTimes(1);
   });
+
+  it('createSnippet procedure should create a new snippet', async () => {
+    // Arrange
+    const mockNewSnippetInput = {
+      body: 'New Snippet Body',
+      tags: ['new', 'test'],
+    };
+    const mockCreatedSnippet = {
+      id: 3,
+      ...mockNewSnippetInput,
+      created_at: new Date(),
+      updated_at: new Date(),
+      used_at: null,
+    };
+
+    (storage.createSnippet as vi.Mock).mockResolvedValue(mockCreatedSnippet);
+    const caller = appRouter.createCaller({});
+
+    // Act
+    const result = await caller.snippets.createSnippet(mockNewSnippetInput);
+
+    // Assert
+    expect(result).toEqual(mockCreatedSnippet);
+    expect(storage.createSnippet).toHaveBeenCalledTimes(1);
+    expect(storage.createSnippet).toHaveBeenCalledWith(mockNewSnippetInput);
+  });
+
+  it('updateSnippet procedure should update an existing snippet', async () => {
+    // Arrange
+    const snippetIdToUpdate = 1;
+    const mockUpdateData = {
+      body: 'Updated Snippet Body',
+      tags: ['updated'],
+    };
+    const mockUpdatedSnippet = {
+      id: snippetIdToUpdate,
+      body: 'Updated Snippet Body',
+      tags: ['updated'],
+      created_at: new Date(), // Assuming these are returned by the update
+      updated_at: new Date(), // This should be a new date
+      used_at: null,
+    };
+
+    (storage.updateSnippet as vi.Mock).mockResolvedValue(mockUpdatedSnippet);
+    const caller = appRouter.createCaller({});
+
+    // Act
+    const result = await caller.snippets.updateSnippet({
+      id: snippetIdToUpdate,
+      data: mockUpdateData,
+    });
+
+    // Assert
+    expect(result).toEqual(mockUpdatedSnippet);
+    expect(storage.updateSnippet).toHaveBeenCalledTimes(1);
+    expect(storage.updateSnippet).toHaveBeenCalledWith(snippetIdToUpdate, mockUpdateData);
+  });
+
+  it('deleteSnippet procedure should delete a snippet', async () => {
+    // Arrange
+    const snippetIdToDelete = 1;
+    (storage.deleteSnippet as vi.Mock).mockResolvedValue(undefined); // deleteSnippet returns void
+    const caller = appRouter.createCaller({});
+
+    // Act
+    const result = await caller.snippets.deleteSnippet({ id: snippetIdToDelete });
+
+    // Assert
+    expect(result).toEqual({ success: true });
+    expect(storage.deleteSnippet).toHaveBeenCalledTimes(1);
+    expect(storage.deleteSnippet).toHaveBeenCalledWith(snippetIdToDelete);
+  });
+
+  it('updateSnippetUsage procedure should update snippet usage timestamp', async () => {
+    // Arrange
+    const snippetIdForUsageUpdate = 1;
+    (storage.updateSnippetUsage as vi.Mock).mockResolvedValue(undefined); // updateSnippetUsage returns void
+    const caller = appRouter.createCaller({});
+
+    // Act
+    const result = await caller.snippets.updateSnippetUsage({ id: snippetIdForUsageUpdate });
+
+    // Assert
+    expect(result).toEqual({ success: true });
+    expect(storage.updateSnippetUsage).toHaveBeenCalledTimes(1);
+    expect(storage.updateSnippetUsage).toHaveBeenCalledWith(snippetIdForUsageUpdate);
+  });
 });
