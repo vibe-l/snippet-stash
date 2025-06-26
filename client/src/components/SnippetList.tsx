@@ -28,7 +28,7 @@ const SnippetList: React.FC<SnippetListProps> = ({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-testid="snippet-list-container">
       {snippets.map(snippet => (
         <SnippetItem
           key={snippet.id}

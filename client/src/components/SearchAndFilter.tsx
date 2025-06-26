@@ -62,13 +62,14 @@ const SearchAndFilter: React.FC<SearchAndFilterProps> = ({
             onChange={(e) => setSearchText(e.target.value)}
             onKeyDown={handleSearchKeyPress}
             className="pl-10"
+            data-testid="search-snippets-input"
           />
         </div>
         
         <div className="flex gap-2">
           <Popover open={tagFilterOpen} onOpenChange={setTagFilterOpen}>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="flex items-center gap-2 justify-between min-w-[120px]">
+              <Button variant="outline" className="flex items-center gap-2 justify-between min-w-[120px]" data-testid="tags-filter-trigger-button">
                 <div className="flex items-center gap-2">
                   <Filter className="w-4 h-4" />
                   Tags ({selectedTags.length})
@@ -76,11 +77,30 @@ const SearchAndFilter: React.FC<SearchAndFilterProps> = ({
                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-80 p-0">
+            <PopoverContent className="w-80 p-0" data-testid="tag-filter-popover-content">
               <Command>
-                <CommandInput placeholder="Search tags..." />
+                <CommandInput placeholder="Search tags..." data-testid="tag-search-input" />
                 <CommandList>
-                  <CommandEmpty>No tags found.</CommandEmpty>
+                  <CommandEmpty>
+                    <div className="p-2">
+                      <Button
+                        size="sm"
+                        data-testid="create-tag-button"
+                        onClick={() => {
+                          const input = document.querySelector('[data-testid="tag-search-input"]') as HTMLInputElement;
+                          if (input?.value) {
+                            // This part would ideally call a function passed via props or context to actually create the tag
+                            // For now, it's just a placeholder for the button itself.
+                            // The test will interact with this button and type into the input.
+                            console.log("Attempting to create tag:", input.value);
+                          }
+                        }}
+                        className="w-full"
+                      >
+                        Create "{(document.querySelector('[data-testid="tag-search-input"]') as HTMLInputElement)?.value || ''}"
+                      </Button>
+                    </div>
+                  </CommandEmpty>
                   <CommandGroup>
                     <div className="flex items-center justify-between p-2 border-b">
                       <h4 className="font-medium">Filter Mode</h4>
@@ -106,6 +126,8 @@ const SearchAndFilter: React.FC<SearchAndFilterProps> = ({
                         key={tag}
                         onSelect={() => toggleTag(tag)}
                         className="flex items-center space-x-2"
+                        data-testid="tag-option"
+                        data-tag-name={tag}
                       >
                         <Checkbox
                           checked={selectedTags.includes(tag)}

@@ -234,7 +234,7 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
       <Card className="p-6">
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between mb-6">
           <div className="flex gap-2">
-            <Button onClick={addNewSnippet} className="flex items-center gap-2">
+            <Button onClick={addNewSnippet} className="flex items-center gap-2" data-testid="add-new-snippet-button">
               <Plus className="w-4 h-4" />
               Add Snippet
             </Button>

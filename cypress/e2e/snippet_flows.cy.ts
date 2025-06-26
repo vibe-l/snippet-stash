@@ -1,166 +1,152 @@
-// E2E tests for snippet user flows based on actual component structure
+// E2E tests for snippet user flows using data-testid attributes
 
 describe('Snippet Management', () => {
-  // Helper function to get the snippet list container.
-  // Assumes SnippetList renders items directly or within one level of nesting.
-  // This might need adjustment if the DOM structure is more complex.
-  const getSnippetList = () => {
-    // Attempt to find a div that likely wraps all snippet items (Card components)
-    // This is heuristic. A data-testid on the list container would be best.
-    return cy.get('div.p-4.space-y-4').parent().parent();
-  };
+  const getSnippetListContainer = () => cy.get('[data-testid="snippet-list-container"]');
+  const getSnippetItems = () => getSnippetListContainer().find('[data-testid="snippet-item"]');
 
-  // Helper function to get all snippet items (Card components)
-  const getSnippetItems = () => {
-    return cy.get('div.p-4.space-y-4:has(textarea, div.font-mono)'); // Heuristic for snippet item cards
-  };
+  // Gets a snippet item by its unique ID (if snippet IDs are known/predictable)
+  // or by its content if ID is not available/stable during test.
+  // For newly created snippets, using .last() is often practical.
+  const getSnippetItemById = (snippetId: string | number) =>
+    cy.get(`[data-testid="snippet-item"][data-snippet-id="${snippetId}"]`);
 
   // Helper function to get a specific snippet item by its displayed code content
-  const getSnippetItemByCode = (codeContent: string) => {
-    return cy.contains('div.font-mono.text-sm.whitespace-pre-wrap', codeContent).closest('div.p-4.space-y-4');
+  // This is useful when the ID of a newly created snippet isn't immediately known.
+  const findSnippetItemByCodeForVerification = (codeContent: string) => {
+    return cy.get('[data-testid="snippet-body-display"]').contains(codeContent)
+      .parents('[data-testid="snippet-item"]');
   };
 
-  // Helper function to add a snippet with given code and tags
-  const addSnippet = (code: string, tags: string[]) => {
-    cy.contains('button', 'Add Snippet').click();
+  // Helper function to add a snippet with given code and tags using data-testid
+  const addSnippet = (code: string, tags: string[], uniqueIdSuffix: string = ''): Cypress.Chainable<JQuery<HTMLElement>> => {
+    cy.get('[data-testid="add-new-snippet-button"]').click();
 
-    // The new snippet item should be the last one and in edit mode
-    getSnippetItems().last().within(() => {
-      cy.get('textarea[placeholder="Enter your snippet here..."]').clear().type(code);
+    // The new snippet item should be the last one and in edit mode.
+    // We'll give it a temporary unique identifier via its content if needed,
+    // or rely on .last() and then verify its contents.
+    const tempSnippetId = `temp-snippet-${uniqueIdSuffix || Date.now()}`; // For very basic distinction if needed
+
+    return getSnippetItems().last().within(() => {
+      cy.get('[data-testid="snippet-body-input"]').clear().type(code);
 
       tags.forEach(tag => {
-        cy.contains('button', 'Add tag...').click();
-        // Popover containing tag input appears
-        cy.get('input[placeholder="Search or create tag..."]').type(tag);
-        // Check if tag exists in the list first
-        cy.get('body').then($body => { // Use body to check existence of popover content
-          if ($body.find(`[cmdk-list] [role="option"]:contains("${tag}")`).length > 0) {
-            cy.get('[cmdk-list]').contains('[role="option"]', tag).click();
+        cy.get('[data-testid="add-tag-to-snippet-button"]').click();
+        // Popover for tags will appear
+        cy.get('[data-testid="tag-picker-popover-content"]').should('be.visible');
+        cy.get('[data-testid="tag-picker-search-input"]').type(tag);
+
+        // Check if tag exists in the list or create new
+        cy.get('[data-testid="tag-picker-popover-content"]').then($popover => {
+          const optionSelector = `[data-testid="tag-picker-option"][data-tag-name="${tag}"]`;
+          if ($popover.find(optionSelector).length > 0) {
+            cy.get(optionSelector).click();
           } else {
-            // Button to create new tag
-            cy.contains('button', new RegExp(`Create "${tag}"`)).click();
+            cy.get('[data-testid="tag-picker-create-new-button"]').click();
           }
         });
+        // Ensure popover closes or is ready for next action
+        cy.get('[data-testid="tag-picker-popover-content"]').should('not.exist'); // Or specific close action
       });
-      cy.contains('button', 'Save').click();
-    });
-
-    // Verification that it was added
-    getSnippetItemByCode(code).should('exist');
-    getSnippetItemByCode(code).within(() => {
-      tags.forEach(tag => {
-        cy.contains('span', tag).should('exist');
-      });
+      cy.get('[data-testid="save-snippet-button"]').click();
+    }).then(($snippetItem) => {
+      // After saving, verify its content.
+      // The snippet item might re-render. We find it by its content now.
+      return findSnippetItemByCodeForVerification(code).should('exist').within(() => {
+        cy.get('[data-testid="snippet-body-display"]').should('contain.text', code);
+        tags.forEach(tag => {
+          cy.get(`[data-testid="snippet-tag"][data-tag-name="${tag}"]`).should('exist');
+        });
+      }).then(() => $snippetItem); // Return the jQuery object of the snippet item
     });
   };
 
   beforeEach(() => {
-    cy.visit('/'); // Visit the base URL (http://localhost:5173)
-    // Optional: Clear all existing snippets before each test for a clean state
-    // This would require a custom Cypress command or UI interaction if possible
-    // For now, we assume tests can run independently or clean up after themselves.
-    // A more robust solution would be to reset DB state via API call if available.
+    cy.visit('/');
+    // Consider adding a cy.intercept for API calls if needed for waiting or assertions.
+    // e.g., cy.intercept('GET', '/api/snippets').as('getSnippets');
+    // cy.wait('@getSnippets'); // if initial load needs to complete
   });
 
   it('should allow a user to create a new snippet', () => {
-    const snippetCode = `// My new snippet\nconsole.log("Created at ${new Date().toISOString()}");`;
-    const snippetTags = ['new', 'test', 'creation'];
+    const snippetCode = `// My new snippet with data-testid\nconsole.log("Created at ${new Date().toISOString()}");`;
+    const snippetTags = ['new-semantic', 'test-attr', 'creation-flow'];
 
-    // Click the "Add Snippet" button in SnippetManager
-    cy.contains('button', 'Add Snippet').click();
+    cy.get('[data-testid="add-new-snippet-button"]').click();
 
-    // A new snippet item appears, automatically in edit mode. It's usually the last one.
-    // If there are many snippets, this might need a more robust selector.
     getSnippetItems().last().within(() => {
-      // Fill in the code/body
-      cy.get('textarea[placeholder="Enter your snippet here..."]')
+      cy.get('[data-testid="snippet-body-input"]')
         .should('be.visible')
-        .clear() // It starts empty but good practice
+        .clear()
         .type(snippetCode);
 
-      // Add tags
       snippetTags.forEach(tag => {
-        cy.contains('button', 'Add tag...').click(); // Open tag popover
-        // The popover is rendered at the body level, not within the snippet item usually
-        // So we escape .within() for these commands if needed, or use global cy.get
-        cy.get('input[placeholder="Search or create tag..."]').type(tag);
-        // Check if tag exists in the list or create new
-        // Using 'body' to ensure Cypress searches the entire DOM for the popover content
-        cy.get('body').then($body => {
-          if ($body.find(`[cmdk-list] [role="option"]:contains("${tag}")`).length > 0) {
-            cy.get('[cmdk-list]').contains('[role="option"]', tag).click();
+        cy.get('[data-testid="add-tag-to-snippet-button"]').click();
+        cy.get('[data-testid="tag-picker-popover-content"]').should('be.visible');
+        cy.get('[data-testid="tag-picker-search-input"]').type(tag);
+        cy.get('[data-testid="tag-picker-popover-content"]').then($popover => {
+          const optionSelector = `[data-testid="tag-picker-option"][data-tag-name="${tag}"]`;
+          if ($popover.find(optionSelector).length > 0) {
+            cy.get(optionSelector).click({ force: true }); // force:true if visibility issues with popover
           } else {
-            cy.contains('button', new RegExp(`Create "${tag}"`)).click();
+            cy.get('[data-testid="tag-picker-create-new-button"]').click({ force: true });
           }
         });
-        // Popover should close or we select another tag
+         cy.get('[data-testid="tag-picker-popover-content"]').should('not.exist'); // Wait for popover to close
       });
-
-      // Click the "Save" button
-      cy.contains('button', 'Save').click();
+      cy.get('[data-testid="save-snippet-button"]').click();
     });
 
-    // Verify the snippet appears in the list with the correct content (now in display mode)
-    getSnippetItemByCode(snippetCode).within(() => {
-      cy.get('div.font-mono.text-sm.whitespace-pre-wrap').should('contain.text', snippetCode);
+    findSnippetItemByCodeForVerification(snippetCode).within(() => {
+      cy.get('[data-testid="snippet-body-display"]').should('contain.text', snippetCode);
       snippetTags.forEach(tag => {
-        cy.contains('span', tag).should('exist'); // Assumes tags are in a span or similar
+        cy.get(`[data-testid="snippet-tag"][data-tag-name="${tag}"]`).should('exist');
       });
     });
   });
 
   it('should allow a user to filter snippets', () => {
-    const reactSnippetCode = 'function MyReactComponent() { return <div>React Example</div>; }';
-    const reactTags = ['react', 'frontend', 'example'];
-    const vueSnippetCode = '<template><div>Vue Example</div></template>';
-    const vueTags = ['vue', 'frontend', 'example'];
+    const reactSnippetCode = 'function MyReactComponent() { return <div data-testid="react-example">React Example</div>; }';
+    const reactTags = ['react-semantic', 'frontend-attr'];
+    const vueSnippetCode = '<template><div data-testid="vue-example">Vue Example</div></template>';
+    const vueTags = ['vue-semantic', 'frontend-attr'];
 
-    // Create snippets needed for filtering
-    addSnippet(reactSnippetCode, reactTags);
-    addSnippet(vueSnippetCode, vueTags);
+    addSnippet(reactSnippetCode, reactTags, 'react');
+    addSnippet(vueSnippetCode, vueTags, 'vue');
 
-    // Use the search input
     const filterKeyword = 'React';
-    cy.get('input[placeholder="Search snippets... (Press Enter to save to history)"]').type(filterKeyword);
+    cy.get('[data-testid="search-snippets-input"]').type(filterKeyword);
 
-    // Assert that only the React snippet is visible
-    getSnippetList().within(() => {
-        getSnippetItemByCode(reactSnippetCode).should('be.visible');
-        getSnippetItemByCode(vueSnippetCode).should('not.exist'); // Or .should('not.be.visible') if it's hidden by CSS
+    getSnippetListContainer().within(() => {
+      findSnippetItemByCodeForVerification(reactSnippetCode).should('be.visible');
+      // Check that the Vue snippet is NOT present in the filtered list
+      cy.get('[data-testid="snippet-body-display"]').contains(vueSnippetCode).should('not.exist');
     });
 
-    // Clear the search
-    cy.get('input[placeholder="Search snippets... (Press Enter to save to history)"]').clear();
+    cy.get('[data-testid="search-snippets-input"]').clear();
 
-    // Assert both are visible again
-    getSnippetList().within(() => {
-        getSnippetItemByCode(reactSnippetCode).should('be.visible');
-        getSnippetItemByCode(vueSnippetCode).should('be.visible');
+    getSnippetListContainer().within(() => {
+      findSnippetItemByCodeForVerification(reactSnippetCode).should('be.visible');
+      findSnippetItemByCodeForVerification(vueSnippetCode).should('be.visible');
     });
   });
 
   it('should allow a user to delete a snippet', () => {
-    const snippetToDeleteCode = `// Snippet to be deleted ${Date.now()}\nconsole.log('delete me');`;
-    const snippetToDeleteTags = ['test-delete', 'temporary'];
+    const snippetToDeleteCode = `// Snippet to be deleted (semantic) ${Date.now()}\nconsole.log('delete me semantically');`;
+    const snippetToDeleteTags = ['test-delete-semantic', 'temporary-attr'];
 
-    // Create a snippet to delete
-    addSnippet(snippetToDeleteCode, snippetToDeleteTags);
+    addSnippet(snippetToDeleteCode, snippetToDeleteTags, 'to-delete');
 
-    // Find the snippet and click its delete button
-    getSnippetItemByCode(snippetToDeleteCode).within(() => {
-      cy.get('button:has(svg.lucide-delete)').click();
+    findSnippetItemByCodeForVerification(snippetToDeleteCode).within(() => {
+      cy.get('[data-testid="delete-snippet-button"]').click();
     });
 
-    // Confirm the deletion in the AlertDialog
-    // The dialog is rendered at the body level
-    cy.get('div[role="alertdialog"]').should('be.visible').within(() => {
-      cy.contains('h2', 'Delete Snippet').should('be.visible'); // AlertDialogTitle is h2
-      cy.contains('button', 'Delete').click();
+    cy.get('[data-testid="delete-snippet-dialog-content"]').should('be.visible').within(() => {
+      cy.get('[data-testid="confirm-delete-action"]').click();
     });
 
-    // Verify the snippet is removed from the list
-    getSnippetList().contains(snippetToDeleteCode).should('not.exist');
-    // Ensure no snippet item contains this text
-    cy.contains('div.font-mono.text-sm.whitespace-pre-wrap', snippetToDeleteCode).should('not.exist');
+    cy.get('[data-testid="delete-snippet-dialog-content"]').should('not.exist');
+    getSnippetListContainer().within(() => {
+      cy.get('[data-testid="snippet-body-display"]').contains(snippetToDeleteCode).should('not.exist');
+    });
   });
 });
