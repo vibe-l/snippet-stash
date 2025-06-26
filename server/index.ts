@@ -1,9 +1,6 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-import dotenv from "dotenv";
-dotenv.config();
-
 import express, { type Request, Response, NextFunction } from "express";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "./routers/_app";
@@ -12,6 +9,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import { createServer } from "http";
 
 const app = express();
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 

@@ -40,8 +40,19 @@ export async function setupVite(app: Express, server: Server) {
     appType: "custom",
   });
 
-  app.use(vite.middlewares);
+  // app.use(vite.middlewares); // Original direct use
+  app.use((req, res, next) => {
+    // If the request path starts with /trpc, skip Vite's middleware.
+    if (req.originalUrl.startsWith('/trpc')) {
+      return next();
+    }
+    // Otherwise, let Vite handle the request.
+    vite.middlewares(req, res, next);
+  });
+
   app.use("*", async (req, res, next) => {
+    // This check is technically redundant if the one above works,
+    // but it's fine as a safeguard.
     if (req.originalUrl.startsWith('/trpc')) {
       return next();
     }
