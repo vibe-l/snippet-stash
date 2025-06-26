@@ -3,9 +3,8 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/s
 import SnippetManager from "@/components/SnippetManager";
 import SearchHistoryPanel from "@/components/SearchHistoryPanel";
 import { SearchHistoryEntry } from "@/types/searchHistory";
-import { useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
 import React, { useState } from "react";
+import { trpc } from "@/lib/trpc";
 
 const Index = () => {
   const [searchState, setSearchState] = useState({
@@ -15,14 +14,10 @@ const Index = () => {
   });
 
   // Search history mutation
-  const addSearchHistoryMutation = useMutation({
-    mutationFn: (search: { query: string; selected_tags: string[]; filter_mode: "and" | "or"; score: number }) =>
-      apiRequest("/api/search-history", {
-        method: "POST",
-        body: JSON.stringify(search)
-      }),
+  const utils = trpc.useUtils();
+  const addSearchHistoryMutation = trpc.searchHistory.addSearchHistory.useMutation({
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/search-history"] });
+      utils.searchHistory.getSearchHistory.invalidate();
       // Trigger custom event to notify the SearchHistoryPanel to refresh
       window.dispatchEvent(new Event('searchHistoryRefresh'));
     }
