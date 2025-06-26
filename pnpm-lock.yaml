@@ -213,12 +213,6 @@ importers:
         specifier: ^3.4.0
         version: 3.5.2(zod@3.25.67)
     devDependencies:
-      '@replit/vite-plugin-cartographer':
-        specifier: ^0.2.5
-        version: 0.2.7
-      '@replit/vite-plugin-runtime-error-modal':
-        specifier: ^0.0.3
-        version: 0.0.3
       '@tailwindcss/typography':
         specifier: ^0.5.15
         version: 0.5.16(tailwindcss@3.4.17)
@@ -1639,12 +1633,6 @@ packages:
   '@radix-ui/rect@1.1.1':
     resolution: {integrity: sha512-HPwpGIzkl28mWyZqG52jiqDJ12waP11Pa1lGoiyUkIEuMLBP0oeK/C89esbXrxsky5we7dfd8U58nm0SgAWpVw==}
 
-  '@replit/vite-plugin-cartographer@0.2.7':
-    resolution: {integrity: sha512-EkHYIRXKizytI+d1ljrD6yyG3I/uA5NdFWX+Ytx0cCTIZigjiictMBLnLOLH5ndAmWfWAD83cmXeWsFld7gdEA==}
-
-  '@replit/vite-plugin-runtime-error-modal@0.0.3':
-    resolution: {integrity: sha512-4wZHGuI9W4o9p8g4Ma/qj++7SP015+FMDGYobj7iap5oEsxXMm0B02TO5Y5PW8eqBPd4wX5l3UGco/hlC0qapw==}
-
   '@rolldown/pluginutils@1.0.0-beta.19':
     resolution: {integrity: sha512-3FL3mnMbPu0muGOCaKAhhFEYmqv9eTfPSJRJmANrCwtgK8VuxpsZDGK+m0LYAGoyO8+0j5uRe4PeyPDK1yA/hA==}
 
@@ -2792,9 +2780,6 @@ packages:
     resolution: {integrity: sha512-+NsyUUAZDmo6YVHzL/stxSu3t9YS1iljliy3BSDrXJ/dkn1KYdmtZODGGjLcc9XLgVVpH4KshHB8XmZgMhaBXg==}
     engines: {node: '>=10'}
     hasBin: true
-
-  modern-screenshot@4.6.4:
-    resolution: {integrity: sha512-NVQJqrFMgBbmUxXxxDvdE1ihgu4qq8M5Dx+FHCBaZRrbNokObGW/DWbvBNTsHmOtTuQ3210EMgwAqPapYxvQtg==}
 
   motion-dom@11.18.1:
     resolution: {integrity: sha512-g76KvA001z+atjfxczdRtw/RXOM3OMSdd1f4DL77qCTF/+avrRJiawSG4yDibEQ215sr9kpinSlX2pCTJ9zbhw==}
@@ -4705,20 +4690,6 @@ snapshots:
 
   '@radix-ui/rect@1.1.1': {}
 
-  '@replit/vite-plugin-cartographer@0.2.7':
-    dependencies:
-      '@babel/parser': 7.27.5
-      '@babel/traverse': 7.27.4
-      '@babel/types': 7.27.6
-      magic-string: 0.30.17
-      modern-screenshot: 4.6.4
-    transitivePeerDependencies:
-      - supports-color
-
-  '@replit/vite-plugin-runtime-error-modal@0.0.3':
-    dependencies:
-      '@jridgewell/trace-mapping': 0.3.25
-
   '@rolldown/pluginutils@1.0.0-beta.19': {}
 
   '@rollup/rollup-android-arm-eabi@4.44.1':
@@ -5810,8 +5781,6 @@ snapshots:
   mitt@3.0.1: {}
 
   mkdirp@3.0.1: {}
-
-  modern-screenshot@4.6.4: {}
 
   motion-dom@11.18.1:
     dependencies:
