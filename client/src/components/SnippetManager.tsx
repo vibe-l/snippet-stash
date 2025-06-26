@@ -7,9 +7,8 @@ import SnippetList from "./SnippetList";
 import TagManager from "./TagManager";
 import { Snippet } from "@/types/snippet";
 import FlexSearch from "flexsearch";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { trpc } from "@/lib/trpc";
 
 interface SnippetManagerProps {
   externalSearchState?: {
@@ -47,9 +46,7 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
   }, [externalSearchState]);
 
   // Fetch snippets from database
-  const { data: snippets = [], isLoading, refetch } = useQuery<Snippet[]>({
-    queryKey: ["/api/snippets"],
-  });
+  const { data: snippets = [], isLoading, refetch } = trpc.snippets.getSnippets.useQuery();
 
   // Create FlexSearch index
   const searchIndex = useMemo(() => {
@@ -88,14 +85,11 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
   };
 
   // Mutations
-  const createSnippetMutation = useMutation({
-    mutationFn: (snippet: { body: string; tags: string[] }) => 
-      apiRequest("/api/snippets", {
-        method: "POST",
-        body: JSON.stringify(snippet)
-      }),
+  const utils = trpc.useUtils();
+
+  const createSnippetMutation = trpc.snippets.createSnippet.useMutation({
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/snippets"] });
+      utils.snippets.getSnippets.invalidate();
       toast({ title: "Snippet created successfully" });
     },
     onError: () => {
@@ -103,14 +97,9 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
     }
   });
 
-  const updateSnippetMutation = useMutation({
-    mutationFn: ({ id, snippet }: { id: number; snippet: { body: string; tags: string[] } }) =>
-      apiRequest(`/api/snippets/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(snippet)
-      }),
+  const updateSnippetMutation = trpc.snippets.updateSnippet.useMutation({
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/snippets"] });
+      utils.snippets.getSnippets.invalidate();
       toast({ title: "Snippet updated successfully" });
     },
     onError: () => {
@@ -118,13 +107,9 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
     }
   });
 
-  const deleteSnippetMutation = useMutation({
-    mutationFn: (id: number) =>
-      apiRequest(`/api/snippets/${id}`, {
-        method: "DELETE"
-      }),
+  const deleteSnippetMutation = trpc.snippets.deleteSnippet.useMutation({
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/snippets"] });
+      utils.snippets.getSnippets.invalidate();
       toast({ title: "Snippet deleted successfully" });
     },
     onError: () => {
@@ -132,13 +117,9 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
     }
   });
 
-  const updateSnippetUsageMutation = useMutation({
-    mutationFn: (id: number) =>
-      apiRequest(`/api/snippets/${id}/use`, {
-        method: "POST"
-      }),
+  const updateSnippetUsageMutation = trpc.snippets.updateSnippetUsage.useMutation({
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/snippets"] });
+      utils.snippets.getSnippets.invalidate();
     }
   });
 
@@ -152,7 +133,7 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
   const updateSnippet = (updatedSnippet: Snippet) => {
     updateSnippetMutation.mutate({
       id: updatedSnippet.id,
-      snippet: {
+      data: { // Changed from snippet to data
         body: updatedSnippet.body,
         tags: updatedSnippet.tags
       }
@@ -160,12 +141,12 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
   };
 
   const deleteSnippet = (id: number) => {
-    deleteSnippetMutation.mutate(id);
+    deleteSnippetMutation.mutate({ id }); // Changed to object with id
   };
 
   const copySnippet = (snippet: Snippet) => {
     navigator.clipboard.writeText(snippet.body);
-    updateSnippetUsageMutation.mutate(snippet.id);
+    updateSnippetUsageMutation.mutate({ id: snippet.id }); // Changed to object with id
     toast({ title: "Snippet copied to clipboard" });
   };
 
@@ -176,7 +157,7 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
         const updatedTags = snippet.tags.map(tag => tag === oldTag ? newTag : tag);
         updateSnippetMutation.mutate({
           id: snippet.id,
-          snippet: {
+          data: { // Changed from snippet to data
             body: snippet.body,
             tags: updatedTags
           }
@@ -195,7 +176,7 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
         const updatedTags = snippet.tags.filter(tag => tag !== tagToDelete);
         updateSnippetMutation.mutate({
           id: snippet.id,
-          snippet: {
+          data: { // Changed from snippet to data
             body: snippet.body,
             tags: updatedTags
           }

@@ -17,9 +17,8 @@ import {
 import { Trash2, Search, Clock } from "lucide-react";
 import { SearchHistoryEntry } from "@/types/searchHistory";
 import { formatDistanceToNow } from "date-fns";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { trpc } from "@/lib/trpc";
 
 interface SearchHistoryPanelProps {
   onRestoreSearch: (entry: SearchHistoryEntry) => void;
@@ -27,20 +26,15 @@ interface SearchHistoryPanelProps {
 
 const SearchHistoryPanel: React.FC<SearchHistoryPanelProps> = ({ onRestoreSearch }) => {
   const { toast } = useToast();
+  const utils = trpc.useUtils();
 
   // Fetch search history from database
-  const { data: history = [], refetch } = useQuery<SearchHistoryEntry[]>({
-    queryKey: ["/api/search-history"],
-  });
+  const { data: history = [], refetch } = trpc.searchHistory.getSearchHistory.useQuery();
 
   // Delete search history entry mutation
-  const deleteEntryMutation = useMutation({
-    mutationFn: (id: number) =>
-      apiRequest(`/api/search-history/${id}`, {
-        method: "DELETE"
-      }),
+  const deleteEntryMutation = trpc.searchHistory.deleteSearchHistory.useMutation({
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/search-history"] });
+      utils.searchHistory.getSearchHistory.invalidate();
       toast({ title: "Search history entry deleted" });
     },
     onError: () => {
@@ -49,13 +43,9 @@ const SearchHistoryPanel: React.FC<SearchHistoryPanelProps> = ({ onRestoreSearch
   });
 
   // Clear all search history mutation
-  const clearAllMutation = useMutation({
-    mutationFn: () =>
-      apiRequest("/api/search-history", {
-        method: "DELETE"
-      }),
+  const clearAllMutation = trpc.searchHistory.clearSearchHistory.useMutation({
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/search-history"] });
+      utils.searchHistory.getSearchHistory.invalidate();
       toast({ title: "Search history cleared" });
     },
     onError: () => {
@@ -78,11 +68,11 @@ const SearchHistoryPanel: React.FC<SearchHistoryPanelProps> = ({ onRestoreSearch
 
   const handleDeleteEntry = (entryId: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    deleteEntryMutation.mutate(entryId);
+    deleteEntryMutation.mutate({ id: entryId }); // Changed to object with id
   };
 
   const handleClearAll = () => {
-    clearAllMutation.mutate();
+    clearAllMutation.mutate(); // No change needed here
   };
 
   const handleRestoreSearch = (entry: SearchHistoryEntry) => {
