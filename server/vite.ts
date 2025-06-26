@@ -42,6 +42,9 @@ export async function setupVite(app: Express, server: Server) {
 
   app.use(vite.middlewares);
   app.use("*", async (req, res, next) => {
+    if (req.originalUrl.startsWith('/trpc')) {
+      return next();
+    }
     const url = req.originalUrl;
 
     try {
