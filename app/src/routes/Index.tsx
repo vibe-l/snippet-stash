@@ -2,44 +2,40 @@
 import { SidebarProvider, SidebarInset, SidebarTrigger, SidebarRail } from "@/components/ui/sidebar";
 import SnippetManager from "@/components/SnippetManager";
 import SearchHistoryPanel from "@/components/SearchHistoryPanel";
-import { SearchHistoryEntry } from "@/types/searchHistory";
+import type { SearchHistory } from "@/lib/schema";
 import React, { useState } from "react";
-import { trpc } from "@/lib/trpc";
+import { useZero } from "@rocicorp/zero/react";
 
 const Index = () => {
+  const zero = useZero();
   const [searchState, setSearchState] = useState({
     searchText: "",
     selectedTags: [] as string[],
-    filterMode: "or" as "and" | "or"
+    filterMode: "or" as "and" | "or",
   });
 
-  // Search history mutation
-  const utils = trpc.useUtils();
-  const addSearchHistoryMutation = trpc.searchHistory.addSearchHistory.useMutation({
-    onSuccess: () => {
-      utils.searchHistory.getSearchHistory.invalidate();
-      // Trigger custom event to notify the SearchHistoryPanel to refresh
-      window.dispatchEvent(new Event('searchHistoryRefresh'));
-    }
-  });
-
-  const handleRestoreSearch = (entry: SearchHistoryEntry) => {
+  const handleRestoreSearch = (entry: SearchHistory) => {
     setSearchState({
       searchText: entry.query,
       selectedTags: entry.selected_tags,
-      filterMode: entry.filter_mode
+      filterMode: entry.filter_mode as "and" | "or",
     });
-    
-    // Add to history when restoring (increases frecency score)
-    addSearchHistoryMutation.mutate({
+
+    // Add to history when restoring. The server-side mutator will handle
+    // incrementing the score if the entry already exists.
+    zero.mutate.addSearchHistory({
       query: entry.query,
       selected_tags: entry.selected_tags,
       filter_mode: entry.filter_mode,
-      score: entry.score + 1
+      score: 1,
     });
   };
 
-  const handleSearchChange = (searchText: string, selectedTags: string[], filterMode: "and" | "or") => {
+  const handleSearchChange = (
+    searchText: string,
+    selectedTags: string[],
+    filterMode: "and" | "or"
+  ) => {
     setSearchState({ searchText, selectedTags, filterMode });
   };
 
@@ -47,11 +43,11 @@ const Index = () => {
     const { searchText, selectedTags, filterMode } = searchState;
     // Add to history when search is submitted (if there's actual search content)
     if (searchText.trim() || selectedTags.length > 0) {
-      addSearchHistoryMutation.mutate({
+      zero.mutate.addSearchHistory({
         query: searchText,
         selected_tags: selectedTags,
         filter_mode: filterMode,
-        score: 1
+        score: 1,
       });
     }
   };

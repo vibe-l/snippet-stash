@@ -5,10 +5,10 @@ import { Plus } from "lucide-react";
 import SearchAndFilter from "./SearchAndFilter";
 import SnippetList from "./SnippetList";
 import TagManager from "./TagManager";
-import { Snippet } from "@/types/snippet";
+import type { Snippet } from "@/lib/schema";
 import FlexSearch from "flexsearch";
 import { useToast } from "@/hooks/use-toast";
-import { trpc } from "@/lib/trpc";
+import { useZero, useQuery } from "@rocicorp/zero/react";
 
 interface SnippetManagerProps {
   externalSearchState?: {
@@ -45,8 +45,10 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
     }
   }, [externalSearchState]);
 
-  // Fetch snippets from database
-  const { data: snippets = [], isLoading, refetch } = trpc.snippets.getSnippets.useQuery();
+  // Fetch snippets from database using Zero
+  const snippetsQuery = zero.query.snippets.orderBy("updated_at", "desc");
+  const [snippets = [], snippetsResult] = useQuery(snippetsQuery);
+  const isLoading = snippetsResult.type !== "complete";
 
   // Create FlexSearch index
   const searchIndex = useMemo(() => {
@@ -84,69 +86,42 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
     }
   };
 
-  // Mutations
-  const utils = trpc.useUtils();
-
-  const createSnippetMutation = trpc.snippets.createSnippet.useMutation({
-    onSuccess: () => {
-      utils.snippets.getSnippets.invalidate();
-      toast({ title: "Snippet created successfully" });
-    },
-    onError: () => {
-      toast({ title: "Failed to create snippet", variant: "destructive" });
-    }
-  });
-
-  const updateSnippetMutation = trpc.snippets.updateSnippet.useMutation({
-    onSuccess: () => {
-      utils.snippets.getSnippets.invalidate();
-      toast({ title: "Snippet updated successfully" });
-    },
-    onError: () => {
-      toast({ title: "Failed to update snippet", variant: "destructive" });
-    }
-  });
-
-  const deleteSnippetMutation = trpc.snippets.deleteSnippet.useMutation({
-    onSuccess: () => {
-      utils.snippets.getSnippets.invalidate();
-      toast({ title: "Snippet deleted successfully" });
-    },
-    onError: () => {
-      toast({ title: "Failed to delete snippet", variant: "destructive" });
-    }
-  });
-
-  const updateSnippetUsageMutation = trpc.snippets.updateSnippetUsage.useMutation({
-    onSuccess: () => {
-      utils.snippets.getSnippets.invalidate();
-    }
-  });
+  const zero = useZero();
 
   const addNewSnippet = () => {
-    createSnippetMutation.mutate({
+    zero.mutate.createSnippet({
       body: "",
-      tags: []
+      tags: [],
+    }).then(() => {
+      toast({ title: "Snippet created successfully" });
+    }).catch(() => {
+      toast({ title: "Failed to create snippet", variant: "destructive" });
     });
   };
 
   const updateSnippet = (updatedSnippet: Snippet) => {
-    updateSnippetMutation.mutate({
+    zero.mutate.updateSnippet({
       id: updatedSnippet.id,
-      data: { // Changed from snippet to data
-        body: updatedSnippet.body,
-        tags: updatedSnippet.tags
-      }
+      body: updatedSnippet.body,
+      tags: updatedSnippet.tags,
+    }).then(() => {
+      toast({ title: "Snippet updated successfully" });
+    }).catch(() => {
+      toast({ title: "Failed to update snippet", variant: "destructive" });
     });
   };
 
   const deleteSnippet = (id: number) => {
-    deleteSnippetMutation.mutate({ id }); // Changed to object with id
+    zero.mutate.deleteSnippet({ id }).then(() => {
+      toast({ title: "Snippet deleted successfully" });
+    }).catch(() => {
+      toast({ title: "Failed to delete snippet", variant: "destructive" });
+    });
   };
 
   const copySnippet = (snippet: Snippet) => {
     navigator.clipboard.writeText(snippet.body);
-    updateSnippetUsageMutation.mutate({ id: snippet.id }); // Changed to object with id
+    zero.mutate.updateSnippetUsage({ id: snippet.id });
     toast({ title: "Snippet copied to clipboard" });
   };
 
@@ -154,19 +129,17 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
     // Update all snippets that contain the old tag
     snippets.forEach(snippet => {
       if (snippet.tags.includes(oldTag)) {
-        const updatedTags = snippet.tags.map(tag => tag === oldTag ? newTag : tag);
-        updateSnippetMutation.mutate({
+        const updatedTags = snippet.tags.map(tag => (tag === oldTag ? newTag : tag));
+        zero.mutate.updateSnippet({
           id: snippet.id,
-          data: { // Changed from snippet to data
-            body: snippet.body,
-            tags: updatedTags
-          }
+          body: snippet.body,
+          tags: updatedTags,
         });
       }
     });
 
     // Update selected tags
-    setSelectedTags(tags => tags.map(tag => tag === oldTag ? newTag : tag));
+    setSelectedTags(tags => tags.map(tag => (tag === oldTag ? newTag : tag)));
   };
 
   const deleteTag = (tagToDelete: string) => {
@@ -174,12 +147,10 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
     snippets.forEach(snippet => {
       if (snippet.tags.includes(tagToDelete)) {
         const updatedTags = snippet.tags.filter(tag => tag !== tagToDelete);
-        updateSnippetMutation.mutate({
+        zero.mutate.updateSnippet({
           id: snippet.id,
-          data: { // Changed from snippet to data
-            body: snippet.body,
-            tags: updatedTags
-          }
+          body: snippet.body,
+          tags: updatedTags,
         });
       }
     });
@@ -269,6 +240,7 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
 
       <SnippetList
         snippets={filteredSnippets}
+        isLoading={isLoading}
         onUpdate={updateSnippet}
         onDelete={deleteSnippet}
         onCopy={copySnippet}

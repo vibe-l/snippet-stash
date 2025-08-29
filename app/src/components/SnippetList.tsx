@@ -1,10 +1,12 @@
 
 import React from "react";
 import SnippetItem from "./SnippetItem";
-import { Snippet } from "@/types/snippet";
+import type { Snippet } from "@/lib/schema";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface SnippetListProps {
   snippets: Snippet[];
+  isLoading: boolean;
   onUpdate: (snippet: Snippet) => void;
   onDelete: (id: number) => void;
   onCopy: (snippet: Snippet) => void;
@@ -17,7 +19,18 @@ const SnippetList: React.FC<SnippetListProps> = ({
   onDelete,
   onCopy,
   allTags,
+  isLoading,
 }) => {
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {[...Array(3)].map((_, i) => (
+          <Skeleton key={i} className="h-24 w-full" />
+        ))}
+      </div>
+    );
+  }
+
   if (snippets.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">

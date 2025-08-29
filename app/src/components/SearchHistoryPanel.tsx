@@ -16,68 +16,42 @@ import {
   useSidebar
 } from "@/components/ui/sidebar";
 import { Trash2, Search, Clock } from "lucide-react";
-import { SearchHistoryEntry } from "@/types/searchHistory";
+import { SearchHistory } from "@/lib/schema";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
-import { trpc } from "@/lib/trpc";
+import { useZero, useQuery } from "@rocicorp/zero/react";
 
 interface SearchHistoryPanelProps {
-  onRestoreSearch: (entry: SearchHistoryEntry) => void;
+  onRestoreSearch: (entry: SearchHistory) => void;
 }
 
 const SearchHistoryPanel: React.FC<SearchHistoryPanelProps> = ({ onRestoreSearch }) => {
   const { toast } = useToast();
-  const utils = trpc.useUtils();
+  const zero = useZero();
   const { state } = useSidebar();
 
-  // Fetch search history from database
-  const { data: history = [], refetch } = trpc.searchHistory.getSearchHistory.useQuery();
-
-  // Delete search history entry mutation
-  const deleteEntryMutation = trpc.searchHistory.deleteSearchHistory.useMutation({
-    onSuccess: () => {
-      utils.searchHistory.getSearchHistory.invalidate();
-      toast({ title: "Search history entry deleted" });
-    },
-    onError: () => {
-      toast({ title: "Failed to delete search history entry", variant: "destructive" });
-    }
-  });
-
-  // Clear all search history mutation
-  const clearAllMutation = trpc.searchHistory.clearSearchHistory.useMutation({
-    onSuccess: () => {
-      utils.searchHistory.getSearchHistory.invalidate();
-      toast({ title: "Search history cleared" });
-    },
-    onError: () => {
-      toast({ title: "Failed to clear search history", variant: "destructive" });
-    }
-  });
-
-  React.useEffect(() => {
-    // Listen for a custom event to refresh when same-tab changes occur
-    const handleRefresh = () => {
-      refetch();
-    };
-    
-    window.addEventListener("searchHistoryRefresh", handleRefresh);
-    
-    return () => {
-      window.removeEventListener("searchHistoryRefresh", handleRefresh);
-    };
-  }, [refetch]);
+  // Fetch search history from database using Zero
+  const historyQuery = zero.query.searchHistory.orderBy("score", "desc");
+  const [history = []] = useQuery(historyQuery);
 
   const handleDeleteEntry = (entryId: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    deleteEntryMutation.mutate({ id: entryId }); // Changed to object with id
+    zero.mutate.deleteSearchHistory({ id: entryId }).then(() => {
+      toast({ title: "Search history entry deleted" });
+    }).catch(() => {
+      toast({ title: "Failed to delete search history entry", variant: "destructive" });
+    });
   };
 
   const handleClearAll = () => {
-    clearAllMutation.mutate(); // No change needed here
+    zero.mutate.clearSearchHistory().then(() => {
+      toast({ title: "Search history cleared" });
+    }).catch(() => {
+      toast({ title: "Failed to clear search history", variant: "destructive" });
+    });
   };
 
-  const handleRestoreSearch = (entry: SearchHistoryEntry) => {
+  const handleRestoreSearch = (entry: SearchHistory) => {
     onRestoreSearch(entry);
     // Note: The backend will handle score updates when history entries are used
   };
