@@ -1,5 +1,5 @@
 
-import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarInset, SidebarTrigger, SidebarRail } from "@/components/ui/sidebar";
 import SnippetManager from "@/components/SnippetManager";
 import SearchHistoryPanel from "@/components/SearchHistoryPanel";
 import { SearchHistoryEntry } from "@/types/searchHistory";
@@ -58,27 +58,26 @@ const Index = () => {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
-        <SearchHistoryPanel onRestoreSearch={handleRestoreSearch} />
-        <SidebarInset>
-          <div className="p-4">
-            <div className="flex items-center gap-2 mb-6">
-              <SidebarTrigger />
-              <div className="text-center flex-1">
-                <h1 className="text-4xl font-bold mb-2">Snippet Manager</h1>
-                <p className="text-muted-foreground">Manage your text snippets with tags and search</p>
-              </div>
-            </div>
-            <div className="max-w-6xl mx-auto">
-              <SnippetManager 
-                externalSearchState={searchState}
-                onSearchChange={handleSearchChange}
-                onSearchSubmit={handleSearchSubmit}
-              />
+      <SearchHistoryPanel onRestoreSearch={handleRestoreSearch} />
+      <SidebarRail />
+      <SidebarInset>
+        <div className="p-4">
+          <div className="flex items-center gap-2 mb-6">
+            <SidebarTrigger />
+            <div className="text-center flex-1">
+              <h1 className="text-4xl font-bold mb-2">Snippet Manager</h1>
+              <p className="text-muted-foreground">Manage your text snippets with tags and search</p>
             </div>
           </div>
-        </SidebarInset>
-      </div>
+          <div className="max-w-6xl mx-auto">
+            <SnippetManager 
+              externalSearchState={searchState}
+              onSearchChange={handleSearchChange}
+              onSearchSubmit={handleSearchSubmit}
+            />
+          </div>
+        </div>
+      </SidebarInset>
     </SidebarProvider>
   );
 };

@@ -12,7 +12,8 @@ import {
   SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuItem,
-  SidebarMenuButton
+  SidebarMenuButton,
+  useSidebar
 } from "@/components/ui/sidebar";
 import { Trash2, Search, Clock } from "lucide-react";
 import { SearchHistoryEntry } from "@/types/searchHistory";
@@ -27,6 +28,7 @@ interface SearchHistoryPanelProps {
 const SearchHistoryPanel: React.FC<SearchHistoryPanelProps> = ({ onRestoreSearch }) => {
   const { toast } = useToast();
   const utils = trpc.useUtils();
+  const { state } = useSidebar();
 
   // Fetch search history from database
   const { data: history = [], refetch } = trpc.searchHistory.getSearchHistory.useQuery();
@@ -89,14 +91,14 @@ const SearchHistoryPanel: React.FC<SearchHistoryPanelProps> = ({ onRestoreSearch
   };
 
   return (
-    <Sidebar className="w-80 border-r">
+    <Sidebar collapsible="icon" className="border-r flex-shrink-0">
       <SidebarHeader className="p-4 border-b">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Search className="w-4 h-4" />
             <span className="font-semibold">Search History</span>
           </div>
-          {history.entries.length > 0 && (
+          {history.length > 0 && (
             <Button 
               variant="ghost" 
               size="sm" 
@@ -123,15 +125,12 @@ const SearchHistoryPanel: React.FC<SearchHistoryPanelProps> = ({ onRestoreSearch
               ) : (
                 history.map((entry) => (
                   <SidebarMenuItem key={entry.id}>
-                    <Card className="p-3 cursor-pointer hover:bg-accent transition-colors">
-                      <SidebarMenuButton 
-                        asChild
-                        className="w-full h-auto p-0"
+                    {state === "expanded" ? (
+                      <Card
+                        className="p-3 cursor-pointer hover:bg-accent transition-colors w-full"
+                        onClick={() => handleRestoreSearch(entry)}
                       >
-                        <div 
-                          onClick={() => handleRestoreSearch(entry)}
-                          className="space-y-2"
-                        >
+                        <div className="space-y-2">
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">
                               {entry.query && (
@@ -167,8 +166,15 @@ const SearchHistoryPanel: React.FC<SearchHistoryPanelProps> = ({ onRestoreSearch
                             <span>{formatLastUsed(entry.last_used_at)}</span>
                           </div>
                         </div>
+                      </Card>
+                    ) : (
+                      <SidebarMenuButton
+                        onClick={() => handleRestoreSearch(entry)}
+                        tooltip={{children: entry.query || entry.selectedTags.join(', ')}}
+                      >
+                        <Search />
                       </SidebarMenuButton>
-                    </Card>
+                    )}
                   </SidebarMenuItem>
                 ))
               )}
