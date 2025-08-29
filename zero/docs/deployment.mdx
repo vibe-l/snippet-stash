@@ -1,0 +1,481 @@
+---
+title: Deploying Zero
+---
+
+To deploy a Zero app, you need to:
+
+1. Deploy your backend database. Most standard Postgres hosts [work with Zero](/docs/connecting-to-postgres).
+1. Deploy `zero-cache`. We provide a [Docker image](https://hub.docker.com/r/rocicorp/zero) that can work with most Docker hosts.
+1. Deploy your frontend. You can use any hosting service like Vercel or Netlify.
+
+This page describes how to deploy `zero-cache`.
+
+## Architecture
+
+`zero-cache` is a horizontally scalable, stateful web service that maintains a SQLite replica of your Postgres database. It uses this replica to sync ZQL queries to clients over WebSockets.
+
+You don't have to know the details of how `zero-cache` works to run it, but it helps to know the basic structure.
+
+<ImageLightbox src="/images/deployment/arch.png" />
+
+A running `zero-cache` is composed of a single `replication-manager` node and multiple `view-syncer` nodes. It also depends on Postgres, S3, and attached SSD storage.
+
+**Upstream:** Your application's Postgres database.
+
+**Change DB:** A Postgres DB used by Zero to store a recent subset of the Postgres replication log.
+
+**CVR DB:** A Postgres DB used by Zero to store Client View Records (CVRs). CVRs track the state of each synced client.
+
+<Note type="note" slug="pg-dbs">
+The Change DB and CVR DBs are typically the same physical Postgres database as the Upstream DB. Zero stores their tables in separate Postgres schemas so they won't conflict with your application data.
+
+We allow separate DBs so that they can be scaled and tuned independently if desired.
+
+</Note>
+
+**S3:** Stores a canonical copy of the SQLite replica.
+
+**File System:** Used by both node types to store local copies of the SQLite replica. Can be ephemeral – Zero will re-initialize from S3 on startup. Recommended to use attached SSD storage for best performance.
+
+**Replication Manager:** Serves as the single consumer of the Postgres replication log. Stores a recent subset of the Postgres changelog in the _Change DB_ for catching up ViewSyncers when they initialize. Also maintains the canonical replica, which ViewSyncers initialize from.
+
+**View Syncers:** Handle WebSocket connections from clients and run ZQL queries. Updates CVR DB with the latest state of each client as queries run. Uses CVR DB on client connection to compute the initial diff to catch clients up.
+
+## Topology
+
+You should deploy `zero-cache` close to your database because the mutation implementation is chatty.
+
+In the future, mutations will [move out of `zero-cache`](https://bugs.rocicorp.dev/issue/3045#comment-5a3BKxP8RfJ9njHLgx5e3).
+When that happens you can deploy `zero-cache` geographically distributed and it will double as a read-replica.
+
+## Updating
+
+When run with multiple View Syncer nodes, `zero-cache` supports rolling, downtime-free updates. A new Replication Manager takes over the replication stream from the old Replication Manager, and connections from the old View Syncers are gradually drained and absorbed by active View Syncers.
+
+## Client/Server Version Compatibility
+
+Servers are compatible with any client of same major version, and with clients one major version back. So for example:
+
+- Server `0.2.*` is compatible with client `0.2.*`
+- Server `0.2.*` is compatible with client `0.1.*`
+- Server `2.*.*` is compatible with client `2.*.*`
+- Server `2.*.*` is compatible with client `1.*.*`
+
+To upgrade Zero to a new major version, first deploy the new zero-cache, then the new frontend.
+
+## Configuration
+
+The `zero-cache` image is configured via environment variables. See [zero-cache Config](/docs/zero-cache-config) for available options.
+
+<Note heading="Custom mutators" slug="push-url">
+  When using custom mutators, don't forget to set the push api url with
+  `ZERO_PUSH_URL`
+</Note>
+
+## Guide: Multi-Node on SST+AWS
+
+[SST](https://sst.dev/) is our recommended way to deploy Zero.
+
+The setup below costs about $35/month. You can scale it up or down as needed by adjusting the amount of vCPUs and memory in each task.
+
+### Setup Upstream
+
+Create an upstream Postgres database server somewhere. See [Connecting to Postgres](/docs/connecting-to-postgres) for details. Populate the schema and any initial data for your application.
+
+### Setup AWS
+
+See [AWS setup guide](https://v2.sst.dev/setting-up-aws). The end result should be that you have a dev profile and SSO session defined in your `~/.aws/config` file.
+
+### Initialize SST
+
+```bash
+npx sst init --yes
+```
+
+Choose "aws" for where to deploy.
+
+Then overwrite `/sst.config.ts` with the following code:
+
+```ts
+/* eslint-disable */
+/// <reference path="./.sst/platform/config.d.ts" />
+import {execSync} from 'child_process';
+
+export default $config({
+  app(input) {
+    return {
+      name: 'hello-zero',
+      removal: input?.stage === 'production' ? 'retain' : 'remove',
+      home: 'aws',
+      region: process.env.AWS_REGION || 'us-east-1',
+      providers: {
+        command: true,
+      },
+    };
+  },
+  async run() {
+    const zeroVersion = execSync('cat package.json | jq '.dependencies["@rocicorp/zero"]')
+      .toString()
+      .trim();
+
+    // S3 Bucket
+    const replicationBucket = new sst.aws.Bucket(`replication-bucket`);
+
+    // VPC Configuration
+    const vpc = new sst.aws.Vpc(`vpc`, {
+      az: 2,
+    });
+
+    // ECS Cluster
+    const cluster = new sst.aws.Cluster(`cluster`, {
+      vpc,
+    });
+
+    const conn = new sst.Secret('PostgresConnectionString');
+    const zeroAuthSecret = new sst.Secret('ZeroAuthSecret');
+
+    // Common environment variables
+    const commonEnv = {
+      ZERO_PUSH_URL: '', // Your push api url when using custom mutators
+      ZERO_UPSTREAM_DB: conn.value,
+      ZERO_CVR_DB: conn.value,
+      ZERO_CHANGE_DB: conn.value,
+      ZERO_AUTH_SECRET: zeroAuthSecret.value,
+      ZERO_REPLICA_FILE: 'sync-replica.db',
+      ZERO_IMAGE_URL: `rocicorp/zero:${zeroVersion}`,
+      ZERO_CVR_MAX_CONNS: '10',
+      ZERO_UPSTREAM_MAX_CONNS: '10',
+    };
+
+    // Replication Manager Service
+    const replicationManager = cluster.addService(`replication-manager`, {
+      cpu: '0.5 vCPU',
+      memory: '1 GB',
+      architecture: 'arm64',
+      image: commonEnv.ZERO_IMAGE_URL,
+      link: [replicationBucket],
+      wait: true,
+      health: {
+        command: ['CMD-SHELL', 'curl -f http://localhost:4849/ || exit 1'],
+        interval: '5 seconds',
+        retries: 3,
+        startPeriod: '300 seconds',
+      },
+      environment: {
+        ...commonEnv,
+        ZERO_LITESTREAM_BACKUP_URL: $interpolate`s3://${replicationBucket.name}/backup`,
+        ZERO_NUM_SYNC_WORKERS: '0',
+      },
+      loadBalancer: {
+        public: false,
+        ports: [
+          {
+            listen: '80/http',
+            forward: '4849/http',
+          },
+        ],
+      },
+      transform: {
+        service: {
+          // e.g. extend the grace period for initial sync of large databases
+          healthCheckGracePeriodSeconds: 600,
+        }
+        target: {
+          healthCheck: {
+            enabled: true,
+            path: '/keepalive',
+            protocol: 'HTTP',
+            interval: 5,
+            healthyThreshold: 2,
+            timeout: 3,
+          },
+        },
+      },
+    });
+
+    // View Syncer Service
+    const viewSyncer = cluster.addService(
+      `view-syncer`,
+      {
+        cpu: '1 vCPU',
+        memory: '2 GB',
+        architecture: 'arm64',
+        image: commonEnv.ZERO_IMAGE_URL,
+        link: [replicationBucket],
+        health: {
+          command: ['CMD-SHELL', 'curl -f http://localhost:4848/ || exit 1'],
+          interval: '5 seconds',
+          retries: 3,
+          startPeriod: '300 seconds',
+        },
+        environment: {
+          ...commonEnv,
+          ZERO_CHANGE_STREAMER_URI: replicationManager.url,
+        },
+        loadBalancer: {
+          ports: [
+            {
+              listen: '80/http',
+              forward: '4848/http',
+            },
+          ],
+        },
+        logging: {
+          retention: '1 month',
+        },
+        transform: {
+          service: {
+            // e.g. extend the grace period for initial sync of large databases
+            healthCheckGracePeriodSeconds: 600,
+          }
+          target: {
+            healthCheck: {
+              enabled: true,
+              path: '/keepalive',
+              protocol: 'HTTP',
+              interval: 5,
+              healthyThreshold: 2,
+              timeout: 3,
+            },
+            stickiness: {
+              enabled: true,
+              type: 'lb_cookie',
+              cookieDuration: 120,
+            },
+          },
+        },
+      },
+    );
+
+    // Permissions deployment
+    // Note: this setup requires your CI/CD pipeline to have access to your
+    // Postgres database. If you do not want to do this, you can also use
+    // `npx zero-deploy-permissions --output-format=sql` during build to
+    // generate a permissions.sql file, then run that file as part of your
+    // deployment within your VPC. See hello-zero-solid for an example:
+    // https://github.com/rocicorp/hello-zero-solid/blob/main/sst.config.ts#L141
+    new command.local.Command(
+      'zero-deploy-permissions',
+      {
+        create: `npx zero-deploy-permissions -p ../../src/schema.ts`,
+        // Run the Command on every deploy ...
+        triggers: [Date.now()],
+        environment: {
+          ZERO_UPSTREAM_DB: commonEnv.ZERO_UPSTREAM_DB,
+        },
+      },
+      // after the view-syncer is deployed.
+      {dependsOn: viewSyncer},
+    );
+  },
+});
+```
+
+### Set SST Secrets
+
+Configure SST with your Postgres connection string and [Zero Auth Secret](/docs/auth#server).
+
+Note that if you use JWT-based auth, you'll need to change the environment variables in the `sst.config.ts` file above, then set a different secret here.
+
+```bash
+npx sst secret set PostgresConnectionString "YOUR-PG-CONN-STRING"
+npx sst secret set ZeroAuthSecret "YOUR-ZERO-AUTH-SECRET"
+```
+
+### Deploy
+
+```bash
+npx sst deploy
+```
+
+This takes about 5-10 minutes.
+
+If successful, you should see a URL for the `view-syncer` service. This is the URL to pass to the `server` parameter of the `Zero` constructor on the client.
+
+If unsuccessful, you can get detailed logs with `npx sst deploy --verbose`. [Come find us on Discord](https://discord.rocicorp.dev/) and we'll help get you sorted out.
+
+## Guide: Single-Node on Fly.io
+
+Let's deploy the [Quickstart](/docs/quickstart) app to [Fly.io](https://fly.io). We'll use Fly.io for both the database and `zero-cache`.
+
+### Setup Quickstart
+
+Go through the [Quickstart](/docs/quickstart) guide to get the app running locally.
+
+### Setup Fly.io
+
+Create an account on [Fly.io](https://fly.io) and [install the Fly CLI](https://fly.io/docs/flyctl/install/).
+
+### Create Postgres app
+
+<Note type="warning" slug="fly-app-names">
+  **Note:** Fly.io requires app names to be unique across all Fly.io users.
+  Change the `INITIALS` environment variable below to something unique.
+</Note>
+
+```bash
+INITIALS=aa
+PG_APP_NAME=$INITIALS-zstart-pg
+
+PG_PASSWORD="$(head -c 256 /dev/urandom | od -An -t x1 | tr -d ' \n' | tr -dc 'a-zA-Z' | head -c 16)"
+
+fly postgres create \
+  --name $PG_APP_NAME \
+  --region lax \
+  --initial-cluster-size 1 \
+  --vm-size shared-cpu-2x \
+  --volume-size 40 \
+  --password=$PG_PASSWORD
+```
+
+### Seed Upstream database
+
+Populate the database with initial data and set its `wal_level` to `logical` to support replication to `zero-cache`. Then restart the database to apply the changes.
+
+```bash
+(cat ./docker/seed.sql; echo "\q") | fly pg connect -a $PG_APP_NAME
+echo "ALTER SYSTEM SET wal_level = logical; \q" | fly pg connect -a $PG_APP_NAME
+fly postgres restart --app $PG_APP_NAME
+```
+
+### Create `zero-cache` Fly.io app
+
+```bash
+CACHE_APP_NAME=$INITIALS-zstart-cache
+fly app create $CACHE_APP_NAME
+```
+
+### Publish `zero-cache`
+
+Create a `fly.toml` file.
+
+```bash
+CONNECTION_STRING="postgres://postgres:$PG_PASSWORD@$PG_APP_NAME.flycast:5432"
+ZERO_VERSION=$(npm list @rocicorp/zero | grep @rocicorp/zero | cut -f 3 -d @)
+
+cat <<EOF > fly.toml
+app = "$CACHE_APP_NAME"
+primary_region = 'lax'
+
+[build]
+image = "registry.hub.docker.com/rocicorp/zero:${ZERO_VERSION}"
+
+[http_service]
+internal_port = 4848
+force_https = true
+auto_stop_machines = 'off'
+min_machines_running = 1
+
+[[http_service.checks]]
+grace_period = "10s"
+interval = "30s"
+method = "GET"
+timeout = "5s"
+path = "/"
+
+[[vm]]
+memory = '2gb'
+cpu_kind = 'shared'
+cpus = 2
+
+[mounts]
+source = "sqlite_db"
+destination = "/data"
+
+[env]
+ZERO_REPLICA_FILE = "/data/sync-replica.db"
+ZERO_UPSTREAM_DB="${CONNECTION_STRING}/zstart?sslmode=disable"
+ZERO_CVR_DB="${CONNECTION_STRING}/zstart_cvr?sslmode=disable"
+ZERO_CHANGE_DB="${CONNECTION_STRING}/zstart_cdb?sslmode=disable"
+ZERO_PUSH_URL=""
+ZERO_AUTH_SECRET="secretkey"
+LOG_LEVEL = "debug"
+EOF
+```
+
+Then publish `zero-cache`:
+
+```bash
+fly deploy
+```
+
+### Deploy Permissions
+
+Now `zero-cache` is running on Fly.io, but there are no permissions. If you run the app against this `zero-cache`, you'll see that no data is returned from any query. To fix this, deploy your permissions:
+
+```bash
+npx zero-deploy-permissions --schema-path='./src/schema.ts'  --output-file='/tmp/permissions.sql'
+(cat /tmp/permissions.sql; echo "\q") | fly pg connect -a $PG_APP_NAME -d zstart
+```
+
+You will need to redo this step every time you change your app's permissions, likely as part of your
+CI/CD pipeline.
+
+### Use Remote `zero-cache`
+
+```bash
+VITE_PUBLIC_SERVER="https://${CACHE_APP_NAME}.fly.dev/" npm run dev:ui
+```
+
+Now restart the frontend to pick up the env change, and refresh the app. You can stop your local database and `zero-cache` as we're not using them anymore. Open the web inspector to verify the app is talking to the remote `zero-cache`!
+
+You can deploy the frontend to any standard hosting service like Vercel or Netlify, or even to Fly.io!
+
+### Deploy Frontend to Vercel
+
+If you've followed the above guide and deployed `zero-cache` to fly, you can simply run:
+
+```sh
+vercel deploy --prod \
+  -e ZERO_AUTH_SECRET="secretkey" \
+  -e VITE_PUBLIC_SERVER='https://${CACHE_APP_NAME}.fly.dev/'
+```
+
+to deploy your frontend to Vercel.
+
+Explaining the arguments above --
+
+- `ZERO_AUTH_SECRET` - The secret to create and verify JWTs. This is the same secret that was used when deploying zero-cache to fly.
+- `VITE_PUBLIC_SERVER` - The URL the frontend will call to talk to the zero-cache server. This is the URL of the fly app.
+
+## Guide: Multi-Node on Raw AWS
+
+### S3 Bucket
+
+Create an S3 bucket. `zero-cache` uses S3 to backup its SQLite replica so that it survives task restarts.
+
+### Fargate Services
+
+Run `zero-cache` as two Fargate services (using the same [rocicorp/zero](https://hub.docker.com/r/rocicorp/zero) docker image):
+
+#### replication-manager
+
+- `zero-cache` config:
+  - `ZERO_LITESTREAM_BACKUP_URL=s3://{bucketName}/{generation}`
+  - `ZERO_NUM_SYNC_WORKERS=0`
+- Task count: **1**
+
+#### view-syncer
+
+- `zero-cache` config:
+  - `ZERO_CHANGE_STREAMER_URI=http://{replication-manager}`
+- Task count: **N**
+  - You can also use dynamic scaling
+
+### Notes
+
+- Standard rolling restarts are fine for both services
+- Set `ZERO_CVR_MAX_CONNS` and `ZERO_UPSTREAM_MAX_CONNS` appropriately so that the total connections from both running and updating `view-syncers` (e.g. DesiredCount \* MaximumPercent) do not exceed your database’s `max_connections`.
+- The `{generation}` component of the `s3://{bucketName}/{generation}` URL is an arbitrary path component that can be modified to reset the replica (e.g. a date, a number, etc.). Setting this to a new path is the multi-node equivalent of deleting the replica file to resync.
+  - Note: `zero-cache` does not manage cleanup of old generations.
+- The `replication-manager` serves requests on port **4849**. Routing from the `view-syncer` to the `http://{replication-manager}` can be achieved using the following mechanisms (in order of preference):
+  - An internal load balancer
+  - [Service Connect](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/service-connect.html)
+  - [Service Discovery](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/service-discovery.html)
+- Fargate ephemeral storage is used for the replica.
+  - The default size is 20GB. This can be increased up to 200GB
+  - Allocate at least twice the size of the database to support the internal VACUUM operation.
+
+## Guide: $PLATFORM
+
+Where should we deploy Zero next?? Let us know on [Discord](https://discord.rocicorp.dev)!

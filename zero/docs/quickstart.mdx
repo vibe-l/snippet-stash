@@ -1,0 +1,63 @@
+---
+title: Quickstart
+---
+
+## Prerequisites
+
+- Docker
+- Node 20+
+
+<Note type="note" slug="other-frameworks">
+  This quickstart uses React, but we also have [one available for SolidJS](/docs/solidjs).
+</Note>
+
+## Run
+
+First, install and start a Postgres database:
+
+```bash
+git clone https://github.com/rocicorp/hello-zero.git
+cd hello-zero
+npm install
+
+npm run dev:db-up
+```
+
+In a separate terminal, start `zero-cache`:
+
+```bash
+cd hello-zero
+npm run dev:zero-cache
+```
+
+In a final terminal, start the application:
+
+```bash
+cd hello-zero
+npm run dev:ui
+```
+
+## Quick Overview
+
+`hello-zero` is a demo app that allows querying over a small dataset of fake messages between early Zero users.
+
+Here are some things to try:
+
+- Press the **Add Messages** button to add messages to the UI. Any logged-in or anonymous users are allowed to add messages.
+- Press the **Remove Messages** button to remove messages. Only logged-in users are allowed to remove messages. You can **hold shift** to bypass the UI warning and see that write access control is being enforced server-side – the UI flickers as the optimistic write happens instantly and is then reverted by the server. Press **login** to login as a random user, then the remove button will work.
+- Open two different browsers and see how fast sync propagates changes.
+- Add a filter using the **From** and **Contains** controls. Notice that filters are fully dynamic and synced.
+- Edit a message by pressing the **pencil icon**. You can only edit messages from the user you’re logged in as. Similar to the remove button, you can attempt to bypass by holding shift.
+- Check out the SQL schema for this database in `seed.sql`.
+- Login to the database with `psql postgresql://user:password@127.0.0.1:5430/postgres` (or any other pg viewer) and delete or alter a row. Observe that it deletes from UI automatically.
+
+## Detailed Walkthrough
+
+<Video
+  src="https://d2nzlypqdo5xbb.cloudfront.net/video/detailed-walkthrough.mp4"
+  alt="Detailed UI and code walkthrough"
+/>
+
+## Deployment
+
+You can deploy Zero apps to most cloud providers that support Docker and Postgres. See [Deployment](/docs/deployment) for more information.

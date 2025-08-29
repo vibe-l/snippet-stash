@@ -1,0 +1,78 @@
+---
+title: Samples
+---
+
+## zbugs
+
+A complete Linear-style bug tracker. Not just a demo app – this is our actual live bug tracker, that we use and depend on everyday.
+
+<Note emoji="⚠️" type="warning" heading="Zbugs uses upcoming features">
+  Zbugs is where we dogfood Zero and try out new APIs. It is intended to be a testbed and showcase, not an example of current best practices.
+
+  For good examples using the stable current release, see [ztunes](#ztunes) and other samples on this page.
+</Note>
+
+<a href="https://bugs.rocicorp.dev/">
+  <img
+    src="/images/samples/zbugs.png"
+    alt="zbugs"
+    style={{border: 'none', padding: 'none'}}
+  />
+</a>
+
+**Demo:** https://bugs.rocicorp.dev/<br/>
+**Stack:** Vite/Fastify/React/AWS<br/>
+**Source:** https://github.com/rocicorp/mono/tree/main/apps/zbugs<br/>
+**Features:** Instant reads and writes, realtime updates, Github auth, write permissions, read permissions, custom mutators, complex filters, unread indicators, basic text search, emojis, short numeric bug IDs, notifications, and more.
+
+## ztunes
+
+An ecommerce store built with Zero, TanStack, Drizzle, and PlanetScale for Postgres.
+
+<a href="https://ztunes.rocicorp.dev">
+  <img
+    src="/images/samples/ztunes.png"
+    alt="ztunes"
+    style={{border: 'none', padding: 'none'}}
+  />
+</a>
+
+**Demo:** https://ztunes.rocicorp.dev/<br/>
+**Stack:** TanStack/Drizzle/Better Auth/Fly.io<br/>
+**Source:** https://github.com/rocicorp/ztunes<br/>
+**Features:** 88k artists, 200k albums, single-command dev, full drizzle integration, text search, read permissions, write permissions.
+
+## hello-zero
+
+Simple quickstart for Zero/React.
+
+<ImageLightbox src="/images/samples/quickstart.png" alt="Quickstart" />
+
+**Stack:** Vite/Hono/React<br/>
+**Source:** https://github.com/rocicorp/hello-zero<br/>
+**Docs:** [Quickstart](/docs/quickstart)<br/>
+**Features:** Instant reads and writes, realtime updates.
+
+## hello-zero-solid
+
+Simple quickstart for Zero/SolidJS.
+
+<ImageLightbox src="/images/samples/hello-zero-solid.png" alt="Quickstart" />
+
+**Stack:** Vite/Hono/SolidJS<br/>
+**Source:** https://github.com/rocicorp/hello-zero-solid<br/>
+**Features:** Instant reads and writes, realtime updates, custom mutators.
+
+## hello-zero-do
+
+Shows how to use the Zero client from a Cloudflare Durable Objects.
+
+<Video
+  src="https://d2nzlypqdo5xbb.cloudfront.net/video/hello-zero-do.mp4"
+  alt="hello-zero-do demo"
+/>
+
+This sample runs `zero-client` within a Durable Object and monitors changes to a Zero query. This can be used to do things like send notifications, update external services, etc.
+
+**Stack:** Vite/Hono/React/Cloudflare Workers<br/>
+**Source:** [https://github.com/rocicorp/hello-zero-do](https://github.com/rocicorp/hello-zero-do)
