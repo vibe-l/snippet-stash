@@ -138,15 +138,15 @@ const SearchHistoryPanel: React.FC<SearchHistoryPanelProps> = ({ onRestoreSearch
                                   "{entry.query}"
                                 </p>
                               )}
-                              {entry.selectedTags.length > 0 && (
+                              {entry.selected_tags.length > 0 && (
                                 <div className="flex flex-wrap gap-1 mt-1">
-                                  {entry.selectedTags.map((tag, index) => (
+                                  {entry.selected_tags.map((tag, index) => (
                                     <Badge key={index} variant="secondary" className="text-xs">
                                       {tag}
                                     </Badge>
                                   ))}
                                   <Badge variant="outline" className="text-xs">
-                                    {entry.filterMode.toUpperCase()}
+                                    {entry.filter_mode.toUpperCase()}
                                   </Badge>
                                 </div>
                               )}
@@ -170,7 +170,7 @@ const SearchHistoryPanel: React.FC<SearchHistoryPanelProps> = ({ onRestoreSearch
                     ) : (
                       <SidebarMenuButton
                         onClick={() => handleRestoreSearch(entry)}
-                        tooltip={{children: entry.query || entry.selectedTags.join(', ')}}
+                        tooltip={{children: entry.query || entry.selected_tags.join(', ')}}
                       >
                         <Search />
                       </SidebarMenuButton>
