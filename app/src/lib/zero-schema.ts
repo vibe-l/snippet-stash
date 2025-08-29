@@ -1,6 +1,6 @@
 import { definePermissions } from "@rocicorp/zero";
 import type { Schema } from "@rocicorp/zero";
-import { createZeroSchema } from "drizzle-zero";
+import { drizzleZeroConfig } from "drizzle-zero";
 import { snippets, users, searchHistory } from "./schema";
 import _ from 'lodash';
 
@@ -13,8 +13,7 @@ const drizzleSchema = {
 const tables = _.mapValues(drizzleSchema, () => true);
 
 // Create the Zero schema.
-export const schema = createZeroSchema(drizzleSchema, {
-    version: 1,
+export const schema = drizzleZeroConfig(drizzleSchema, {
     tables,
     // No many-to-many relationships are defined in the original schema.
 });

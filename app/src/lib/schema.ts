@@ -1,26 +1,26 @@
-import { pgTable, text, serial, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 export const users = pgTable("users", {
-  id: integer("id").primaryKey(),
+  id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
 });
 
 export const snippets = pgTable("snippets", {
-  id: integer("id").primaryKey(),
+  id: serial("id").primaryKey(),
   body: text("body").notNull(),
-  tags: text("tags").array().notNull().default([]),
+  tags: jsonb("tags").$type<string[]>().notNull().default([]),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
   used_at: timestamp("used_at"),
 });
 
 export const searchHistory = pgTable("search_history", {
-  id: integer("id").primaryKey(),
+  id: serial("id").primaryKey(),
   query: text("query").notNull(),
-  selected_tags: text("selected_tags").array().notNull().default([]),
+  selected_tags: jsonb("selected_tags").$type<string[]>().notNull().default([]),
   filter_mode: text("filter_mode").notNull(),
   score: integer("score").notNull().default(1),
   created_at: timestamp("created_at").defaultNow().notNull(),
