@@ -218,9 +218,17 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
     if (effectiveFilterMode === "or" || effectiveSelectedTags.length === 0) {
       return allTags;
     }
+
+    // In "and" mode, filter the list to show only tags that exist on snippets that
+    // match both the currently selected tags AND the current search query.
+    let baseSnippets = snippets;
+
+    if (effectiveSearchText.trim()) {
+      const searchResults = searchIndex.search(effectiveSearchText);
+      baseSnippets = searchResults.map(index => snippets[index as number]);
+    }
     
-    // In "and" mode, only show tags that appear together with currently selected tags
-    const snippetsWithSelectedTags = snippets.filter(snippet =>
+    const snippetsWithSelectedTags = baseSnippets.filter(snippet =>
       effectiveSelectedTags.every(tag => snippet.tags.includes(tag))
     );
     
