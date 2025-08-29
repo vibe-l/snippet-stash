@@ -1,0 +1,29 @@
+{
+  "name": "zero_sync",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@rocicorp/zero": "^0.12.2025012501",
+    "dotenv": "^16.4.7",
+    "drizzle-orm": "^0.39.1",
+    "drizzle-zero": "^0.3.0",
+    "lodash": "^4.17.21",
+    "pg": "^8.13.1",
+    "typescript": "^5.7.3"
+  },
+  "devDependencies": {
+    "@types/lodash": "^4.17.15",
+    "@types/node": "^22.12.0",
+    "@types/pg": "^8.11.11",
+    "drizzle-kit": "^0.30.4",
+    "tsx": "^4.19.2"
+  }
+}

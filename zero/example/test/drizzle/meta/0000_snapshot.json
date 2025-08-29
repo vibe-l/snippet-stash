@@ -1,0 +1,109 @@
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "prevId": "",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.doc": {
+      "name": "doc",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    },
+    "public.related": {
+      "name": "related",
+      "schema": "",
+      "columns": {
+        "fk_from_doc": {
+          "name": "fk_from_doc",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fk_to_doc": {
+          "name": "fk_to_doc",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "related_fk_from_doc": {
+          "name": "related_fk_from_doc",
+          "tableFrom": "related",
+          "tableTo": "doc",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "fk_from_doc"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "related_fk_to_doc": {
+          "name": "related_fk_to_doc",
+          "tableFrom": "related",
+          "tableTo": "doc",
+          "schemaTo": "public",
+          "columnsFrom": [
+            "fk_to_doc"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "related_pkey": {
+          "name": "related_pkey",
+          "columns": [
+            "fk_from_doc",
+            "fk_to_doc"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "tables": {}
+  }
+}

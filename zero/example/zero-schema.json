@@ -1,0 +1,302 @@
+{
+  "permissions": {},
+  "schema": {
+    "version": 1,
+    "tables": {
+      "doc": {
+        "name": "doc",
+        "columns": {
+          "id": {
+            "type": "string",
+            "optional": false,
+            "customType": null
+          },
+          "created_at": {
+            "type": "number",
+            "optional": true,
+            "customType": null
+          },
+          "updated_at": {
+            "type": "number",
+            "optional": true,
+            "customType": null
+          },
+          "title": {
+            "type": "string",
+            "optional": true,
+            "customType": null
+          },
+          "body": {
+            "type": "string",
+            "optional": true,
+            "customType": null
+          },
+          "properties": {
+            "type": "json",
+            "optional": true,
+            "customType": null
+          },
+          "fk_template": {
+            "type": "string",
+            "optional": true,
+            "customType": null
+          },
+          "fk_user": {
+            "type": "string",
+            "optional": true,
+            "customType": null
+          }
+        },
+        "primaryKey": [
+          "id"
+        ]
+      },
+      "doc_rating": {
+        "name": "doc_rating",
+        "columns": {
+          "id": {
+            "type": "string",
+            "optional": false,
+            "customType": null
+          },
+          "created_at": {
+            "type": "number",
+            "optional": true,
+            "customType": null
+          },
+          "updated_at": {
+            "type": "number",
+            "optional": true,
+            "customType": null
+          },
+          "fk_doc": {
+            "type": "string",
+            "optional": false,
+            "customType": null
+          },
+          "fk_user": {
+            "type": "string",
+            "optional": false,
+            "customType": null
+          },
+          "rating": {
+            "type": "number",
+            "optional": false,
+            "customType": null
+          },
+          "comment": {
+            "type": "string",
+            "optional": true,
+            "customType": null
+          }
+        },
+        "primaryKey": [
+          "id"
+        ]
+      },
+      "doc_to_doc": {
+        "name": "doc_to_doc",
+        "columns": {
+          "fk_from_doc": {
+            "type": "string",
+            "optional": false,
+            "customType": null
+          },
+          "fk_to_doc": {
+            "type": "string",
+            "optional": false,
+            "customType": null
+          }
+        },
+        "primaryKey": [
+          "fk_from_doc",
+          "fk_to_doc"
+        ]
+      },
+      "template": {
+        "name": "template",
+        "columns": {
+          "id": {
+            "type": "string",
+            "optional": false,
+            "customType": null
+          },
+          "created_at": {
+            "type": "number",
+            "optional": true,
+            "customType": null
+          },
+          "updated_at": {
+            "type": "number",
+            "optional": true,
+            "customType": null
+          },
+          "body": {
+            "type": "string",
+            "optional": false,
+            "customType": null
+          }
+        },
+        "primaryKey": [
+          "id"
+        ]
+      },
+      "users": {
+        "name": "users",
+        "columns": {
+          "id": {
+            "type": "string",
+            "optional": false,
+            "customType": null
+          },
+          "created_at": {
+            "type": "number",
+            "optional": true,
+            "customType": null
+          },
+          "updated_at": {
+            "type": "number",
+            "optional": true,
+            "customType": null
+          },
+          "name": {
+            "type": "string",
+            "optional": false,
+            "customType": null
+          }
+        },
+        "primaryKey": [
+          "id"
+        ]
+      }
+    },
+    "relationships": {
+      "doc": {
+        "related_docs": [
+          {
+            "sourceField": [
+              "id"
+            ],
+            "destField": [
+              "fk_from_doc"
+            ],
+            "destSchema": "doc_to_doc",
+            "cardinality": "many"
+          },
+          {
+            "sourceField": [
+              "fk_to_doc"
+            ],
+            "destField": [
+              "id"
+            ],
+            "destSchema": "doc",
+            "cardinality": "many"
+          }
+        ],
+        "doc_ratings": [
+          {
+            "sourceField": [
+              "id"
+            ],
+            "destField": [
+              "fk_doc"
+            ],
+            "destSchema": "doc_rating",
+            "cardinality": "many"
+          }
+        ],
+        "doc_to_docs_fk_from_doc": [
+          {
+            "sourceField": [
+              "id"
+            ],
+            "destField": [
+              "fk_from_doc"
+            ],
+            "destSchema": "doc_to_doc",
+            "cardinality": "many"
+          }
+        ],
+        "doc_to_docs_fk_to_doc": [
+          {
+            "sourceField": [
+              "id"
+            ],
+            "destField": [
+              "fk_to_doc"
+            ],
+            "destSchema": "doc_to_doc",
+            "cardinality": "many"
+          }
+        ]
+      },
+      "doc_rating": {
+        "doc": [
+          {
+            "sourceField": [
+              "fk_doc"
+            ],
+            "destField": [
+              "id"
+            ],
+            "destSchema": "doc",
+            "cardinality": "one"
+          }
+        ],
+        "user": [
+          {
+            "sourceField": [
+              "fk_user"
+            ],
+            "destField": [
+              "id"
+            ],
+            "destSchema": "users",
+            "cardinality": "one"
+          }
+        ]
+      },
+      "doc_to_doc": {
+        "doc_fk_from_doc": [
+          {
+            "sourceField": [
+              "fk_from_doc"
+            ],
+            "destField": [
+              "id"
+            ],
+            "destSchema": "doc",
+            "cardinality": "one"
+          }
+        ],
+        "doc_fk_to_doc": [
+          {
+            "sourceField": [
+              "fk_to_doc"
+            ],
+            "destField": [
+              "id"
+            ],
+            "destSchema": "doc",
+            "cardinality": "one"
+          }
+        ]
+      },
+      "users": {
+        "doc_ratings": [
+          {
+            "sourceField": [
+              "id"
+            ],
+            "destField": [
+              "fk_user"
+            ],
+            "destSchema": "doc_rating",
+            "cardinality": "many"
+          }
+        ]
+      }
+    }
+  }
+}
