@@ -10,7 +10,7 @@ import {
   type InsertSearchHistory
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, and } from "drizzle-orm";
 
 export interface IStorage {
   // User methods
@@ -98,11 +98,38 @@ export class DatabaseStorage implements IStorage {
   }
 
   async addSearchHistory(search: InsertSearchHistory): Promise<SearchHistory> {
-    const [newSearch] = await db
-      .insert(searchHistory)
-      .values(search)
-      .returning();
-    return newSearch;
+    // Check if an identical search already exists
+    const existingSearch = await db
+      .select()
+      .from(searchHistory)
+      .where(
+        and(
+          eq(searchHistory.query, search.query),
+          sql`${searchHistory.selected_tags} = ${JSON.stringify(search.selected_tags)}::text[]`,
+          eq(searchHistory.filter_mode, search.filter_mode)
+        )
+      )
+      .limit(1);
+
+    if (existingSearch.length > 0) {
+      // Update existing entry: increment score and update last_used_at
+      const [updatedSearch] = await db
+        .update(searchHistory)
+        .set({
+          score: existingSearch[0].score + search.score,
+          last_used_at: sql`NOW()`
+        })
+        .where(eq(searchHistory.id, existingSearch[0].id))
+        .returning();
+      return updatedSearch;
+    } else {
+      // Create new entry if no duplicate exists
+      const [newSearch] = await db
+        .insert(searchHistory)
+        .values(search)
+        .returning();
+      return newSearch;
+    }
   }
 
   async updateSearchHistoryScore(id: number, score: number): Promise<void> {
