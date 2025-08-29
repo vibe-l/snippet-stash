@@ -27,8 +27,8 @@ interface SearchHistoryPanelProps {
 
 const SearchHistoryPanel: React.FC<SearchHistoryPanelProps> = ({ onRestoreSearch }) => {
   const { toast } = useToast();
-  const zero = useZero();
   const { state } = useSidebar();
+  const zero = useZero();
 
   // Fetch search history from database using Zero
   const historyQuery = zero.query.searchHistory.orderBy("score", "desc");

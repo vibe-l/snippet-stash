@@ -1,5 +1,5 @@
 {
-  "include": ["app/src/**/*", "app/server/**/*", "vite.config.ts"],
+  "include": ["app/src/**/*", "app/server/**/*", "vite.config.ts", "app/src/lib/sapp/src/lib/zero-schema.tsro-schema.ts"],
   "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
   "compilerOptions": {
     "incremental": true,

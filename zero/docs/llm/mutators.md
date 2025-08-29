@@ -20,7 +20,7 @@ The `createMutators` function returns an object where keys are the names of your
 
 ```typescript
 // src/lib/mutators.ts
-import type { CustomMutatorDefs, Transaction } from '@rocicorp/zero/client';
+import type { CustomMutatorDefs, Transaction } from '@rocicorp/zero';
 import { schema } from './zero-schema.js';
 import type { InsertSnippet } from './schema.js';
 

@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { ZeroProvider } from '@rocicorp/zero/react';
-import { Zero } from '@rocicorp/zero/client';
+import { Zero } from '@rocicorp/zero';
 import { schema } from './lib/zero-schema.js';
 import { createMutators } from './lib/mutators.js';
 
@@ -11,6 +11,7 @@ import { createMutators } from './lib/mutators.js';
 const server = import.meta.env.VITE_PUBLIC_ZERO_SERVER;
 
 const zero = new Zero({
+  userID: "anon",
   server,
   schema,
   mutators: createMutators(),

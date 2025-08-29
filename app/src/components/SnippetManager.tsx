@@ -30,6 +30,7 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
   const [filterMode, setFilterMode] = useState<"and" | "or">("or");
   const [showTagManager, setShowTagManager] = useState(false);
   const { toast } = useToast();
+  const zero = useZero();
 
   // Use external search state if provided
   const effectiveSearchText = externalSearchState?.searchText ?? searchText;
@@ -85,8 +86,6 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
       onSearchChange(effectiveSearchText, effectiveSelectedTags, newFilterMode);
     }
   };
-
-  const zero = useZero();
 
   const addNewSnippet = () => {
     zero.mutate.createSnippet({

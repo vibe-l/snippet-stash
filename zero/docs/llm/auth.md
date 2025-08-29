@@ -16,7 +16,7 @@ When you instantiate the `Zero` client, pass the user's authentication token to 
 
 ```typescript
 // src/main.tsx
-import { Zero } from '@rocicorp/zero/client';
+import { Zero } from '@rocicorp/zero';
 
 // Assume getAuthToken() retrieves the JWT from localStorage, a cookie, etc.
 const authToken = getAuthToken();

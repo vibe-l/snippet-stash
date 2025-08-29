@@ -16,7 +16,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import { ZeroProvider } from '@rocicorp/zero/react';
-import { Zero } from '@rocicorp/zero/client';
+import { Zero } from '@rocicorp/zero';
 import { schema } from './lib/zero-schema.js';
 import { createMutators } from './lib/mutators.js';
 

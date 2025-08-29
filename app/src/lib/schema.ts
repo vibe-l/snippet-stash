@@ -3,13 +3,13 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
+  id: integer("id").primaryKey(),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
 });
 
 export const snippets = pgTable("snippets", {
-  id: serial("id").primaryKey(),
+  id: integer("id").primaryKey(),
   body: text("body").notNull(),
   tags: text("tags").array().notNull().default([]),
   created_at: timestamp("created_at").defaultNow().notNull(),
@@ -18,7 +18,7 @@ export const snippets = pgTable("snippets", {
 });
 
 export const searchHistory = pgTable("search_history", {
-  id: serial("id").primaryKey(),
+  id: integer("id").primaryKey(),
   query: text("query").notNull(),
   selected_tags: text("selected_tags").array().notNull().default([]),
   filter_mode: text("filter_mode").notNull(),

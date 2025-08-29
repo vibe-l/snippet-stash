@@ -1,4 +1,4 @@
-import type { CustomMutatorDefs, Transaction } from '@rocicorp/zero/client';
+import type { CustomMutatorDefs, Transaction } from '@rocicorp/zero';
 import { schema } from './zero-schema.js';
 import type { InsertSnippet, Snippet, InsertSearchHistory } from './schema.js';
 
