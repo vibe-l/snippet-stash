@@ -47,6 +47,11 @@ function createServerMutators() {
                 await tx.mutate.searchHistory.insert(search);
             }
         },
+        // Override clearSearchHistory for efficient server-side deletion
+        clearSearchHistory: async (tx: ServerTransaction) => {
+            // Use raw SQL for efficient bulk deletion on the server
+            await tx.dbTransaction`DELETE FROM search_history`;
+        },
     };
 }
 
