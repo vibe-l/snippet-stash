@@ -13,7 +13,7 @@ console.log('server:', server)
 
 const zero = new Zero({
   userID: "anon",
-  server: 'http://localhost:4848',
+  server: server || 'http://localhost:4848',
   schema,
   mutators: createMutators(),
 });

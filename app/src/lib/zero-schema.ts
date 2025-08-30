@@ -1,4 +1,4 @@
-import { definePermissions } from "@rocicorp/zero";
+import { definePermissions, ANYONE_CAN } from "@rocicorp/zero";
 import type { Schema } from "@rocicorp/zero";
 import { drizzleZeroConfig } from "drizzle-zero";
 import { snippets, users, searchHistory } from "./schema";
@@ -23,5 +23,39 @@ type AuthData = {
   sub: string;
 };
 
-// Define empty permissions for now. Read permissions will be configured later if needed.
-export const permissions = definePermissions<AuthData, Schema>(schema, () => ({}));
+// Define permissions to allow reading all tables
+export const permissions = definePermissions<AuthData, Schema>(schema, () => ({
+  snippets: {
+    row: {
+      select: ANYONE_CAN,
+      insert: ANYONE_CAN,
+      update: {
+        preMutation: ANYONE_CAN,
+        postMutation: ANYONE_CAN,
+      },
+      delete: ANYONE_CAN
+    }
+  },
+  searchHistory: {
+    row: {
+      select: ANYONE_CAN,
+      insert: ANYONE_CAN,
+      update: {
+        preMutation: ANYONE_CAN,
+        postMutation: ANYONE_CAN,
+      },
+      delete: ANYONE_CAN
+    }
+  },
+  users: {
+    row: {
+      select: ANYONE_CAN,
+      insert: ANYONE_CAN,
+      update: {
+        preMutation: ANYONE_CAN,
+        postMutation: ANYONE_CAN,
+      },
+      delete: ANYONE_CAN
+    }
+  }
+}));

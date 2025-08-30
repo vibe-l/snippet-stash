@@ -32,9 +32,10 @@ export const insertUserSchema = createInsertSchema(users).pick({
   password: true,
 });
 
-export const insertSnippetSchema = createInsertSchema(snippets).pick({
-  body: true,
-  tags: true,
+export const insertSnippetSchema = createInsertSchema(snippets).omit({
+  created_at: true,
+  updated_at: true,
+  used_at: true,
 });
 
 export const insertSearchHistorySchema = createInsertSchema(searchHistory).pick({
