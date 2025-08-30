@@ -51,14 +51,6 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
   const [snippets = [], snippetsResult] = useQuery(snippetsQuery);
   const isLoading = snippetsResult.type !== "complete";
 
-  // Debug logging
-  console.log('Snippets query result:', {
-    snippets: snippets.length,
-    resultType: snippetsResult.type,
-    isLoading,
-    allSnippets: snippets
-  });
-
   // Create FlexSearch index
   const searchIndex = useMemo(() => {
     const index = new FlexSearch.Index({
