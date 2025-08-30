@@ -57,7 +57,7 @@ function createServerMutators() {
 
 export const app = new Hono().basePath('/api');
 
-app.post('/push', async (c) => {
+app.post('/mutate', async (c) => {
   // Here you would typically get authentication data from the request.
   const mutators = createServerMutators();
   const result = await processor.process(mutators, c.req.raw);
@@ -66,3 +66,15 @@ app.post('/push', async (c) => {
 
 // This makes the Hono app compatible with Vercel's serverless functions.
 export default handle(app);
+
+// For local development, start the server
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const { serve } = await import('@hono/node-server');
+  const port = process.env.PORT ? parseInt(process.env.PORT) : 4747;
+  
+  console.log(`Starting server on port ${port}`);
+  serve({
+    fetch: app.fetch,
+    port
+  });
+}

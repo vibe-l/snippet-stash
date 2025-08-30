@@ -94,7 +94,7 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
       id: tempId,
       body: "",
       tags: [],
-    }).then(() => {
+    }).client.then(() => {
       toast({ title: "Snippet created successfully" });
     }).catch(() => {
       toast({ title: "Failed to create snippet", variant: "destructive" });
@@ -106,7 +106,7 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
       id: updatedSnippet.id,
       body: updatedSnippet.body,
       tags: updatedSnippet.tags,
-    }).then(() => {
+    }).client.then(() => {
       toast({ title: "Snippet updated successfully" });
     }).catch(() => {
       toast({ title: "Failed to update snippet", variant: "destructive" });
@@ -114,7 +114,7 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
   };
 
   const deleteSnippet = (id: number) => {
-    zero.mutate.deleteSnippet({ id }).then(() => {
+    zero.mutate.deleteSnippet({ id }).client.then(() => {
       toast({ title: "Snippet deleted successfully" });
     }).catch(() => {
       toast({ title: "Failed to delete snippet", variant: "destructive" });
@@ -136,7 +136,7 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
           id: snippet.id,
           body: snippet.body,
           tags: updatedTags,
-        });
+        }).client;
       }
     });
 
@@ -153,7 +153,7 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
           id: snippet.id,
           body: snippet.body,
           tags: updatedTags,
-        });
+        }).client;
       }
     });
 

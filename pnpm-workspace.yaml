@@ -1,4 +1,5 @@
 onlyBuiltDependencies:
   - '@rocicorp/zero-sqlite3'
   - cypress
+  - msw
   - protobufjs

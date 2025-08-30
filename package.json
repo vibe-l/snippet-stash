@@ -15,6 +15,7 @@
     "import:snippets": "tsx scripts/import-snippets.ts"
   },
   "dependencies": {
+    "@hono/node-server": "^1.19.1",
     "@hookform/resolvers": "^5.2.1",
     "@jridgewell/trace-mapping": "^0.3.30",
     "@neondatabase/serverless": "^1.0.1",
