@@ -5,7 +5,7 @@
   "license": "MIT",
   "scripts": {
     "dev:ui": "vite",
-    "dev:server": "tsx app/src/server/index.ts",
+    "dev:server": "tsx --env-file=.env app/src/server/index.ts",
     "dev:zero-cache": "zero-cache",
     "build": "vite build",
     "check": "tsc",

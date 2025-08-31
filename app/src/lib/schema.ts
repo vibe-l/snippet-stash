@@ -9,7 +9,7 @@ export const users = pgTable("users", {
 });
 
 export const snippets = pgTable("snippets", {
-  id: serial("id").primaryKey(),
+  id: text("id").primaryKey(),
   body: text("body").notNull(),
   tags: jsonb("tags").$type<string[]>().notNull().default([]),
   created_at: timestamp("created_at").defaultNow().notNull(),
@@ -18,7 +18,7 @@ export const snippets = pgTable("snippets", {
 });
 
 export const searchHistory = pgTable("search_history", {
-  id: serial("id").primaryKey(),
+  id: text("id").primaryKey(),
   query: text("query").notNull(),
   selected_tags: jsonb("selected_tags").$type<string[]>().notNull().default([]),
   filter_mode: text("filter_mode").notNull(),

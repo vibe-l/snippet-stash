@@ -1,6 +1,7 @@
 import type { CustomMutatorDefs, Transaction } from '@rocicorp/zero';
 import { schema } from './zero-schema.js';
 import type { InsertSnippet, Snippet, InsertSearchHistory, InsertUser, User } from './schema.js';
+import { nanoid } from 'nanoid';
 
 type Schema = typeof schema;
 
@@ -18,14 +19,14 @@ export function createMutators() {
             // The `created_at` and `updated_at` fields have server-side defaults.
             await tx.mutate.snippets.insert(snippet);
         },
-        updateSnippet: async (tx: Transaction, { id, ...snippet }: { id: number } & Partial<Omit<Snippet, 'id'>>) => {
+        updateSnippet: async (tx: Transaction, { id, ...snippet }: { id: string } & Partial<Omit<Snippet, 'id'>>) => {
             // We manually update the `updated_at` timestamp on the client for the optimistic update.
             await tx.mutate.snippets.update({ id, ...snippet, updated_at: new Date().toISOString() });
         },
-        deleteSnippet: async (tx: Transaction, { id }: { id: number }) => {
+        deleteSnippet: async (tx: Transaction, { id }: { id: string }) => {
             await tx.mutate.snippets.delete({ id });
         },
-        updateSnippetUsage: async (tx: Transaction, { id }: { id: number }) => {
+        updateSnippetUsage: async (tx: Transaction, { id }: { id: string }) => {
             await tx.mutate.snippets.update({ id, used_at: new Date().toISOString() });
         },
         
@@ -47,14 +48,17 @@ export function createMutators() {
                     last_used_at: new Date().toISOString()
                 });
             } else {
-                // If it doesn't exist, create a new entry
-                await tx.mutate.searchHistory.insert(search);
+                // If it doesn't exist, create a new entry with nanoid
+                await tx.mutate.searchHistory.insert({
+                    ...search,
+                    id: nanoid()
+                });
             }
         },
-        updateSearchHistoryScore: async (tx: Transaction, { id, score }: { id: number, score: number }) => {
+        updateSearchHistoryScore: async (tx: Transaction, { id, score }: { id: string, score: number }) => {
             await tx.mutate.searchHistory.update({ id, score, last_used_at: new Date().toISOString() });
         },
-        deleteSearchHistory: async (tx: Transaction, { id }: { id: number }) => {
+        deleteSearchHistory: async (tx: Transaction, { id }: { id: string }) => {
             await tx.mutate.searchHistory.delete({ id });
         },
         clearSearchHistory: async (tx: Transaction) => {

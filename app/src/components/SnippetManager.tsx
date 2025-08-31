@@ -9,6 +9,7 @@ import type { Snippet } from "@/lib/schema";
 import FlexSearch from "flexsearch";
 import { useToast } from "@/hooks/use-toast";
 import { useZero, useQuery } from "@rocicorp/zero/react";
+import { nanoid } from "nanoid";
 
 interface SnippetManagerProps {
   externalSearchState?: {
@@ -88,10 +89,10 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
   };
 
   const addNewSnippet = () => {
-    // Generate a temporary negative ID for optimistic updates
-    const tempId = -Date.now();
+    // Generate a unique ID using nanoid
+    const snippetId = nanoid();
     zero.mutate.createSnippet({
-      id: tempId,
+      id: snippetId,
       body: "",
       tags: [],
     }).client.then(() => {
