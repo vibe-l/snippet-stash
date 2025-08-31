@@ -6,4 +6,4 @@ vite.config.ts.*
 *.tar.gz
 .vscode/
 zero/cache.sqlite*
-data/
+data/*
