@@ -9,7 +9,6 @@ class DocumentIDGenerator {
     this.maxIdLength = maxIdLength;
     this.docWordCounts = new Map();
     this.idWordCounts = new Map();
-    this.referenceCount = 0;
     this.usedSortedIds = new Set();
   }
 
@@ -37,11 +36,6 @@ class DocumentIDGenerator {
     }
     
     this.docWordCounts = wordCounts;
-    
-    // Calculate 25th percentile of highest word count (75th percentile overall)
-    const counts = Array.from(wordCounts.values()).sort((a, b) => b - a);
-    const percentile25Index = Math.floor(counts.length * 0.25);
-    this.referenceCount = counts[percentile25Index] || 0;
   }
 
   loadDocWordCounts(filePath) {
@@ -50,20 +44,13 @@ class DocumentIDGenerator {
         const content = fs.readFileSync(filePath, 'utf8');
         const lines = content.split('\n').slice(1); // Skip header
         
-        const counts = [];
         for (const line of lines) {
           if (line.trim()) {
             const [word, count] = line.split(',');
             const countNum = parseInt(count);
             this.docWordCounts.set(word, countNum);
-            counts.push(countNum);
           }
         }
-        
-        // Calculate 25th percentile of highest word count (75th percentile overall)
-        counts.sort((a, b) => b - a);
-        const percentile25Index = Math.floor(counts.length * 0.25);
-        this.referenceCount = counts[percentile25Index] || 0;
       }
     } catch (error) {
       console.error(`Warning: Could not load doc word counts from ${filePath}: ${error.message}`);
@@ -100,17 +87,9 @@ class DocumentIDGenerator {
     }
   }
 
-  calculateWordScore(word) {
-    const docWordCount = this.docWordCounts.get(word) || 0;
-    const idWordCount = this.idWordCounts.get(word) || 0;
-    
-    if (docWordCount === this.referenceCount) {
-      return 2 * idWordCount;
-    } else if (docWordCount < this.referenceCount) {
-      return this.referenceCount - docWordCount + 2 * idWordCount;
-    } else {
-      return docWordCount - this.referenceCount + 2 * idWordCount;
-    }
+  calculateWordScore(word, docPosition, countWeight) {
+    const wordCount = this.docWordCounts.get(word) || 0;
+    return docPosition + countWeight * wordCount;
   }
 
   generateId(document, documentIndex, sortedIdsFilePath) {
@@ -119,117 +98,163 @@ class DocumentIDGenerator {
       return `document_${documentIndex}`;
     }
     
-    // Remove duplicate words while preserving order
+    // Remove duplicate words while preserving order and position
     const uniqueWords = [];
     const seenWords = new Set();
     for (let i = 0; i < words.length; i++) {
       if (!seenWords.has(words[i])) {
         seenWords.add(words[i]);
-        uniqueWords.push(words[i]);
+        uniqueWords.push({ word: words[i], docPosition: i });
       }
     }
     
-    // Create word objects with document index and score
-    const wordObjects = uniqueWords.map((word, index) => ({
-      word,
-      docIndex: index,
-      score: this.calculateWordScore(word)
-    }));
-    
-    // Sort by ascending score
-    const sortedWords = wordObjects.sort((a, b) => a.score - b.score);
-    
-    let currentSet = [];
+    const selectedWords = [];
+    const usedWords = new Set();
+    const countWeights = [3, 4, 5, 6, 7];
     let currentLength = 0;
-    let wordIndex = 0;
     
-    while (wordIndex < sortedWords.length) {
-      const wordObj = sortedWords[wordIndex];
-      const newLength = currentLength + (currentSet.length > 0 ? 1 : 0) + wordObj.word.length;
+    // Select words iteratively with different countWeights
+    for (let iteration = 0; iteration < countWeights.length && selectedWords.length < uniqueWords.length; iteration++) {
+      const countWeight = countWeights[iteration];
+      let bestWord = null;
+      let bestScore = Infinity;
       
-      if (newLength > this.maxIdLength) {
-        if (currentLength >= this.minIdLength) {
+      // Find the word with the lowest score for this countWeight
+      for (const wordObj of uniqueWords) {
+        if (usedWords.has(wordObj.word)) continue;
+        
+        const score = this.calculateWordScore(wordObj.word, wordObj.docPosition, countWeight);
+        if (score < bestScore) {
+          bestScore = score;
+          bestWord = wordObj;
+        }
+      }
+      
+      if (bestWord) {
+        const newLength = currentLength + (selectedWords.length > 0 ? 1 : 0) + bestWord.word.length;
+        
+        if (newLength <= this.maxIdLength) {
+          selectedWords.push(bestWord);
+          usedWords.add(bestWord.word);
+          currentLength = newLength;
+        } else if (newLength > this.maxIdLength && currentLength >= this.minIdLength) {
+          // Stop if adding would exceed maxLength but we already meet minLength
           break;
         }
-        // If we haven't reached minLength, we need to try different combination
-        if (currentSet.length > 0) {
-          // Remove the last added word and try next
-          const removed = currentSet.pop();
-          currentLength = this.calculateIdLength(currentSet);
-          wordIndex++;
-          continue;
-        } else {
-          wordIndex++;
-          continue;
-        }
       }
+    }
+    
+    // If we don't have enough length, add more words with the last countWeight
+    if (currentLength < this.minIdLength && selectedWords.length < uniqueWords.length) {
+      const lastCountWeight = countWeights[countWeights.length - 1];
       
-      currentSet.push(wordObj);
-      currentLength = newLength;
-      
-      if (currentLength >= this.minIdLength) {
-        // Check uniqueness
-        const sortedId = currentSet
-          .map(w => w.word)
-          .sort()
-          .join('_');
+      while (currentLength < this.minIdLength && selectedWords.length < uniqueWords.length) {
+        let bestWord = null;
+        let bestScore = Infinity;
+        
+        for (const wordObj of uniqueWords) {
+          if (usedWords.has(wordObj.word)) continue;
           
-        if (!this.usedSortedIds.has(sortedId)) {
-          this.usedSortedIds.add(sortedId);
-          
-          // Update ID word counts
-          const uniqueWords = new Set(currentSet.map(w => w.word));
-          for (const word of uniqueWords) {
-            this.idWordCounts.set(word, (this.idWordCounts.get(word) || 0) + 1);
-          }
-          
-          // Cache the sorted ID
-          if (sortedIdsFilePath) {
-            this.cacheSortedId(sortedIdsFilePath, sortedId);
-          }
-          
-          // Return words in document order
-          const finalId = currentSet
-            .sort((a, b) => a.docIndex - b.docIndex)
-            .map(w => w.word)
-            .join('_');
-            
-          return finalId;
-        } else {
-          // ID already exists, remove lowest scoring word and add next
-          if (currentSet.length > 1) {
-            currentSet.shift(); // Remove first (lowest score)
-            currentLength = this.calculateIdLength(currentSet);
+          const score = this.calculateWordScore(wordObj.word, wordObj.docPosition, lastCountWeight);
+          if (score < bestScore) {
+            bestScore = score;
+            bestWord = wordObj;
           }
         }
+        
+        if (bestWord) {
+          const newLength = currentLength + (selectedWords.length > 0 ? 1 : 0) + bestWord.word.length;
+          
+          // Always add the word if we haven't reached minLength, even if it exceeds maxLength
+          if (currentLength < this.minIdLength) {
+            selectedWords.push(bestWord);
+            usedWords.add(bestWord.word);
+            currentLength = newLength;
+          } else {
+            break;
+          }
+        } else {
+          break;
+        }
+      }
+    }
+    
+    if (selectedWords.length === 0) {
+      return `document_${documentIndex}`;
+    }
+    
+    // Check uniqueness
+    const sortedId = selectedWords
+      .map(w => w.word)
+      .sort()
+      .join('_');
+      
+    if (!this.usedSortedIds.has(sortedId)) {
+      this.usedSortedIds.add(sortedId);
+      
+      // Update ID word counts
+      const uniqueWordsInId = new Set(selectedWords.map(w => w.word));
+      for (const word of uniqueWordsInId) {
+        this.idWordCounts.set(word, (this.idWordCounts.get(word) || 0) + 1);
       }
       
-      wordIndex++;
+      // Cache the sorted ID
+      if (sortedIdsFilePath) {
+        this.cacheSortedId(sortedIdsFilePath, sortedId);
+      }
+      
+      // Return words in document order
+      const finalId = selectedWords
+        .sort((a, b) => a.docPosition - b.docPosition)
+        .map(w => w.word)
+        .join('_');
+        
+      return finalId;
+    } else {
+      // Fallback if ID already exists - ensure minimum length
+      let fallbackWords = uniqueWords.slice(0, Math.min(3, uniqueWords.length));
+      let baseId = fallbackWords.map(w => w.word).join('_');
+      
+      // If the base ID is too short, add more words to meet minimum length
+      let currentLength = baseId.length;
+      let wordIndex = fallbackWords.length;
+      while (currentLength < this.minIdLength && wordIndex < uniqueWords.length) {
+        const nextWord = uniqueWords[wordIndex];
+        const newLength = currentLength + 1 + nextWord.word.length; // +1 for underscore
+        if (newLength <= this.maxIdLength || currentLength < this.minIdLength) {
+          fallbackWords.push(nextWord);
+          baseId = fallbackWords.map(w => w.word).join('_');
+          currentLength = newLength;
+        } else {
+          break;
+        }
+        wordIndex++;
+      }
+      
+      let counter = 1;
+      let finalId = baseId;
+      
+      const sortedFallback = fallbackWords.map(w => w.word).sort().join('_');
+      while (this.usedSortedIds.has(sortedFallback + (counter > 1 ? `_${counter}` : ''))) {
+        counter++;
+      }
+      
+      if (counter > 1) {
+        finalId = `${baseId}_${counter}`;
+      }
+      
+      this.usedSortedIds.add(sortedFallback + (counter > 1 ? `_${counter}` : ''));
+      
+      // Update ID word counts for fallback
+      const uniqueWordsInId = new Set(fallbackWords.map(w => w.word));
+      for (const word of uniqueWordsInId) {
+        this.idWordCounts.set(word, (this.idWordCounts.get(word) || 0) + 1);
+      }
+      
+      return finalId;
     }
-    
-    // Fallback if no unique ID found
-    const fallbackWords = words.slice(0, Math.min(3, words.length));
-    let baseId = fallbackWords.join('_');
-    let counter = 1;
-    let finalId = baseId;
-    
-    const sortedFallback = fallbackWords.sort().join('_');
-    while (this.usedSortedIds.has(sortedFallback + (counter > 1 ? `_${counter}` : ''))) {
-      counter++;
-    }
-    
-    if (counter > 1) {
-      finalId = `${baseId}_${counter}`;
-    }
-    
-    this.usedSortedIds.add(sortedFallback + (counter > 1 ? `_${counter}` : ''));
-    return finalId;
   }
 
-  calculateIdLength(wordObjects) {
-    if (wordObjects.length === 0) return 0;
-    return wordObjects.reduce((acc, w, i) => acc + w.word.length + (i > 0 ? 1 : 0), 0);
-  }
 
   cacheSortedId(filePath, sortedId) {
     try {
