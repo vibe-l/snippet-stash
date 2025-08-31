@@ -110,7 +110,7 @@ class DocumentIDGenerator {
     
     const selectedWords = [];
     const usedWords = new Set();
-    const countWeights = [1, 1, 2, 2, 3, 3];
+    const countWeights = [1, 1, 1, 1, 1, 1];
     let currentLength = 0;
     
     // Select words iteratively with different countWeights
