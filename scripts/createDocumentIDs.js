@@ -8,6 +8,7 @@ class DocumentIDGenerator {
     this.minIdLength = minIdLength;
     this.maxIdLength = maxIdLength;
     this.docWordCounts = new Map();
+    this.vocabulary = new Set(); // Set of all unique words from corpus
     this.usedSortedIds = new Set();
     this.verbose = verbose;
     this.verboseDocuments = verboseDocuments; // Set of document indices to debug
@@ -28,6 +29,131 @@ class DocumentIDGenerator {
     }
   }
 
+  lemmatizeWord(word) {
+    // Irregular verb and noun mappings
+    const irregularMappings = {
+      // Irregular verbs (present/past/past participle forms)
+      'was': 'be', 'were': 'be', 'been': 'be', 'am': 'be', 'is': 'be', 'are': 'be',
+      'has': 'have', 'had': 'have', 'having': 'have',
+      'does': 'do', 'did': 'do', 'done': 'do', 'doing': 'do',
+      'goes': 'go', 'went': 'go', 'gone': 'go', 'going': 'go',
+      'gets': 'get', 'got': 'get', 'gotten': 'get', 'getting': 'get',
+      'makes': 'make', 'made': 'make', 'making': 'make',
+      'takes': 'take', 'took': 'take', 'taken': 'take', 'taking': 'take',
+      'comes': 'come', 'came': 'come', 'coming': 'come',
+      'gives': 'give', 'gave': 'give', 'given': 'give', 'giving': 'give',
+      'says': 'say', 'said': 'say', 'saying': 'say',
+      'sees': 'see', 'saw': 'see', 'seen': 'see', 'seeing': 'see',
+      'knows': 'know', 'knew': 'know', 'known': 'know', 'knowing': 'know',
+      'thinks': 'think', 'thought': 'think', 'thinking': 'think',
+      'finds': 'find', 'found': 'find', 'finding': 'find',
+      'tells': 'tell', 'told': 'tell', 'telling': 'tell',
+      'becomes': 'become', 'became': 'become', 'becoming': 'become',
+      'leaves': 'leave', 'left': 'leave', 'leaving': 'leave',
+      'feels': 'feel', 'felt': 'feel', 'feeling': 'feel',
+      'brings': 'bring', 'brought': 'bring', 'bringing': 'bring',
+      'begins': 'begin', 'began': 'begin', 'begun': 'begin', 'beginning': 'begin',
+      'keeps': 'keep', 'kept': 'keep', 'keeping': 'keep',
+      'holds': 'hold', 'held': 'hold', 'holding': 'hold',
+      'writes': 'write', 'wrote': 'write', 'written': 'write', 'writing': 'write',
+      'stands': 'stand', 'stood': 'stand', 'standing': 'stand',
+      'hears': 'hear', 'heard': 'hear', 'hearing': 'hear',
+      'lets': 'let', 'letting': 'let',
+      'means': 'mean', 'meant': 'mean', 'meaning': 'mean',
+      'sets': 'set', 'setting': 'set',
+      'meets': 'meet', 'met': 'meet', 'meeting': 'meet',
+      'runs': 'run', 'ran': 'run', 'running': 'run',
+      'moves': 'move', 'moved': 'move', 'moving': 'move',
+      'lives': 'live', 'lived': 'live', 'living': 'live',
+      'believes': 'believe', 'believed': 'believe', 'believing': 'believe',
+      'brings': 'bring', 'brought': 'bring', 'bringing': 'bring',
+      'builds': 'build', 'built': 'build', 'building': 'build',
+      'buys': 'buy', 'bought': 'buy', 'buying': 'buy',
+      'catches': 'catch', 'caught': 'catch', 'catching': 'catch',
+      'chooses': 'choose', 'chose': 'choose', 'chosen': 'choose', 'choosing': 'choose',
+      'cuts': 'cut', 'cutting': 'cut',
+      'draws': 'draw', 'drew': 'draw', 'drawn': 'draw', 'drawing': 'draw',
+      'drinks': 'drink', 'drank': 'drink', 'drunk': 'drink', 'drinking': 'drink',
+      'drives': 'drive', 'drove': 'drive', 'driven': 'drive', 'driving': 'drive',
+      'eats': 'eat', 'ate': 'eat', 'eaten': 'eat', 'eating': 'eat',
+      'falls': 'fall', 'fell': 'fall', 'fallen': 'fall', 'falling': 'fall',
+      'fights': 'fight', 'fought': 'fight', 'fighting': 'fight',
+      'flies': 'fly', 'flew': 'fly', 'flown': 'fly', 'flying': 'fly',
+      'forgets': 'forget', 'forgot': 'forget', 'forgotten': 'forget', 'forgetting': 'forget',
+      'grows': 'grow', 'grew': 'grow', 'grown': 'grow', 'growing': 'grow',
+      'hangs': 'hang', 'hung': 'hang', 'hanging': 'hang',
+      'hits': 'hit', 'hitting': 'hit',
+      'hurts': 'hurt', 'hurting': 'hurt',
+      'lays': 'lay', 'laid': 'lay', 'laying': 'lay',
+      'leads': 'lead', 'led': 'lead', 'leading': 'lead',
+      'learns': 'learn', 'learned': 'learn', 'learnt': 'learn', 'learning': 'learn',
+      'lies': 'lie', 'lay': 'lie', 'lain': 'lie', 'lying': 'lie',
+      'loses': 'lose', 'lost': 'lose', 'losing': 'lose',
+      'pays': 'pay', 'paid': 'pay', 'paying': 'pay',
+      'puts': 'put', 'putting': 'put',
+      'reads': 'read', 'reading': 'read',
+      'rides': 'ride', 'rode': 'ride', 'ridden': 'ride', 'riding': 'ride',
+      'rings': 'ring', 'rang': 'ring', 'rung': 'ring', 'ringing': 'ring',
+      'rises': 'rise', 'rose': 'rise', 'risen': 'rise', 'rising': 'rise',
+      'sells': 'sell', 'sold': 'sell', 'selling': 'sell',
+      'sends': 'send', 'sent': 'send', 'sending': 'send',
+      'shuts': 'shut', 'shutting': 'shut',
+      'sings': 'sing', 'sang': 'sing', 'sung': 'sing', 'singing': 'sing',
+      'sits': 'sit', 'sat': 'sit', 'sitting': 'sit',
+      'sleeps': 'sleep', 'slept': 'sleep', 'sleeping': 'sleep',
+      'speaks': 'speak', 'spoke': 'speak', 'spoken': 'speak', 'speaking': 'speak',
+      'spends': 'spend', 'spent': 'spend', 'spending': 'spend',
+      'swims': 'swim', 'swam': 'swim', 'swum': 'swim', 'swimming': 'swim',
+      'teaches': 'teach', 'taught': 'teach', 'teaching': 'teach',
+      'throws': 'throw', 'threw': 'throw', 'thrown': 'throw', 'throwing': 'throw',
+      'understands': 'understand', 'understood': 'understand', 'understanding': 'understand',
+      'wakes': 'wake', 'woke': 'wake', 'woken': 'wake', 'waking': 'wake',
+      'wears': 'wear', 'wore': 'wear', 'worn': 'wear', 'wearing': 'wear',
+      'wins': 'win', 'won': 'win', 'winning': 'win',
+      
+      // Irregular plurals and comparative forms
+      'children': 'child', 'people': 'person', 'men': 'man', 'women': 'woman',
+      'teeth': 'tooth', 'feet': 'foot', 'geese': 'goose', 'mice': 'mouse',
+      'better': 'good', 'best': 'good', 'worse': 'bad', 'worst': 'bad',
+      'more': 'much', 'most': 'much', 'less': 'little', 'least': 'little',
+      'further': 'far', 'furthest': 'far', 'farther': 'far', 'farthest': 'far'
+    };
+    
+    // Check irregular mappings first
+    if (irregularMappings[word] && this.vocabulary.has(irregularMappings[word])) {
+      this.log(`  Irregular lemmatized "${word}" → "${irregularMappings[word]}"`);
+      return irregularMappings[word];
+    }
+    
+    // Common English suffixes to try removing
+    const suffixes = [
+      'ing', 'ed', 'es', 's', 'er', 'est', 'ly', 'tion', 'sion', 'ment', 
+      'ness', 'ity', 'able', 'ible', 'ful', 'less', 'ish', 'ous', 'ive'
+    ];
+    
+    // Try removing each suffix and check if resulting lemma exists in vocabulary
+    for (const suffix of suffixes) {
+      if (word.endsWith(suffix) && word.length > suffix.length + 2) { // Ensure lemma would be at least 3 chars
+        const lemma = word.slice(0, -suffix.length);
+        if (this.vocabulary.has(lemma)) {
+          this.log(`  Suffix lemmatized "${word}" → "${lemma}"`);
+          return lemma;
+        }
+      }
+    }
+    
+    // Special case for -ies → -y
+    if (word.endsWith('ies') && word.length > 5) {
+      const lemma = word.slice(0, -3) + 'y';
+      if (this.vocabulary.has(lemma)) {
+        this.log(`  Special lemmatized "${word}" → "${lemma}"`);
+        return lemma;
+      }
+    }
+    
+    return word; // Return original if no valid lemma found
+  }
+
   preprocessText(text) {
     this.log(`\n=== PREPROCESSING TEXT: "${text}" ===`);
     const words = text
@@ -37,12 +163,37 @@ class DocumentIDGenerator {
       .trim()
       .split(' ')
       .filter(word => word.length >= 3 && !/\d/.test(word));
-    this.log(`Preprocessed words:`, words);
-    return words;
+    
+    // Apply lemmatization if vocabulary is available
+    const processedWords = this.vocabulary.size > 0 
+      ? words.map(word => this.lemmatizeWord(word))
+      : words;
+    
+    this.log(`Preprocessed words:`, processedWords);
+    return processedWords;
   }
 
   buildDocWordCounts(documents) {
     this.log('\n=== BUILDING WORD COUNTS ===');
+    
+    // First pass: build vocabulary without lemmatization
+    this.log('Building vocabulary...');
+    for (const doc of documents) {
+      const words = doc
+        .toLowerCase()
+        .replace(/[^\w\s\u00C0-\u024F\u1E00-\u1EFF]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .split(' ')
+        .filter(word => word.length >= 3 && !/\d/.test(word));
+      
+      for (const word of words) {
+        this.vocabulary.add(word);
+      }
+    }
+    this.log(`Vocabulary built with ${this.vocabulary.size} unique words`);
+    
+    // Second pass: build word counts with lemmatization
     const wordCounts = new Map();
     
     for (const doc of documents) {
@@ -69,8 +220,11 @@ class DocumentIDGenerator {
             const [word, count] = line.split(',');
             const countNum = parseInt(count);
             this.docWordCounts.set(word, countNum);
+            // Also add to vocabulary for lemmatization
+            this.vocabulary.add(word);
           }
         }
+        this.log(`Loaded ${this.docWordCounts.size} word counts and built vocabulary from cache`);
       }
     } catch (error) {
       console.error(`Warning: Could not load doc word counts from ${filePath}: ${error.message}`);
