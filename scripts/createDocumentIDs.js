@@ -8,15 +8,13 @@ class DocumentIDGenerator {
     this.minIdLength = minIdLength;
     this.maxIdLength = maxIdLength;
     this.docWordCounts = new Map();
-    this.idWordCounts = new Map();
     this.usedSortedIds = new Set();
   }
 
   preprocessText(text) {
     return text
       .toLowerCase()
-      .normalize('NFD')
-      .replace(/[^\w\s\u00C0-\u017F]/g, ' ')
+      .replace(/[^\w\s\u00C0-\u024F\u1E00-\u1EFF]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim()
       .split(' ')
@@ -57,42 +55,14 @@ class DocumentIDGenerator {
     }
   }
 
-  loadIdWordCounts(filePath) {
-    try {
-      if (fs.existsSync(filePath)) {
-        const content = fs.readFileSync(filePath, 'utf8');
-        const lines = content.split('\n').slice(1); // Skip header
-        
-        for (const line of lines) {
-          if (line.trim()) {
-            const [word, count] = line.split(',');
-            this.idWordCounts.set(word, parseInt(count));
-          }
-        }
-      }
-    } catch (error) {
-      console.error(`Warning: Could not load ID word counts from ${filePath}: ${error.message}`);
-    }
-  }
 
-  loadExistingSortedIds(filePath) {
-    try {
-      if (fs.existsSync(filePath)) {
-        const content = fs.readFileSync(filePath, 'utf8');
-        const sortedIds = content.split('\n').filter(line => line.trim().length > 0);
-        sortedIds.forEach(id => this.usedSortedIds.add(id));
-      }
-    } catch (error) {
-      console.error(`Warning: Could not load existing sorted IDs from ${filePath}: ${error.message}`);
-    }
-  }
 
   calculateWordScore(word, docPosition, countWeight) {
     const wordCount = this.docWordCounts.get(word) || 0;
     return docPosition + countWeight * wordCount;
   }
 
-  generateId(document, documentIndex, sortedIdsFilePath) {
+  generateId(document, documentIndex) {
     const words = this.preprocessText(document);
     if (words.length === 0) {
       return `document_${documentIndex}`;
@@ -110,7 +80,7 @@ class DocumentIDGenerator {
     
     const selectedWords = [];
     const usedWords = new Set();
-    const countWeights = [3, 4, 5, 6, 7];
+    const countWeights = [1, 2, 3, 4, 5];
     let currentLength = 0;
     
     // Select words iteratively with different countWeights
@@ -183,86 +153,16 @@ class DocumentIDGenerator {
       return `document_${documentIndex}`;
     }
     
-    // Check uniqueness
-    const sortedId = selectedWords
+    // Return words in document order
+    const finalId = selectedWords
+      .sort((a, b) => a.docPosition - b.docPosition)
       .map(w => w.word)
-      .sort()
       .join('_');
       
-    if (!this.usedSortedIds.has(sortedId)) {
-      this.usedSortedIds.add(sortedId);
-      
-      // Update ID word counts
-      const uniqueWordsInId = new Set(selectedWords.map(w => w.word));
-      for (const word of uniqueWordsInId) {
-        this.idWordCounts.set(word, (this.idWordCounts.get(word) || 0) + 1);
-      }
-      
-      // Cache the sorted ID
-      if (sortedIdsFilePath) {
-        this.cacheSortedId(sortedIdsFilePath, sortedId);
-      }
-      
-      // Return words in document order
-      const finalId = selectedWords
-        .sort((a, b) => a.docPosition - b.docPosition)
-        .map(w => w.word)
-        .join('_');
-        
-      return finalId;
-    } else {
-      // Fallback if ID already exists - ensure minimum length
-      let fallbackWords = uniqueWords.slice(0, Math.min(3, uniqueWords.length));
-      let baseId = fallbackWords.map(w => w.word).join('_');
-      
-      // If the base ID is too short, add more words to meet minimum length
-      let currentLength = baseId.length;
-      let wordIndex = fallbackWords.length;
-      while (currentLength < this.minIdLength && wordIndex < uniqueWords.length) {
-        const nextWord = uniqueWords[wordIndex];
-        const newLength = currentLength + 1 + nextWord.word.length; // +1 for underscore
-        if (newLength <= this.maxIdLength || currentLength < this.minIdLength) {
-          fallbackWords.push(nextWord);
-          baseId = fallbackWords.map(w => w.word).join('_');
-          currentLength = newLength;
-        } else {
-          break;
-        }
-        wordIndex++;
-      }
-      
-      let counter = 1;
-      let finalId = baseId;
-      
-      const sortedFallback = fallbackWords.map(w => w.word).sort().join('_');
-      while (this.usedSortedIds.has(sortedFallback + (counter > 1 ? `_${counter}` : ''))) {
-        counter++;
-      }
-      
-      if (counter > 1) {
-        finalId = `${baseId}_${counter}`;
-      }
-      
-      this.usedSortedIds.add(sortedFallback + (counter > 1 ? `_${counter}` : ''));
-      
-      // Update ID word counts for fallback
-      const uniqueWordsInId = new Set(fallbackWords.map(w => w.word));
-      for (const word of uniqueWordsInId) {
-        this.idWordCounts.set(word, (this.idWordCounts.get(word) || 0) + 1);
-      }
-      
-      return finalId;
-    }
+    return finalId;
   }
 
 
-  cacheSortedId(filePath, sortedId) {
-    try {
-      fs.appendFileSync(filePath, sortedId + '\n', 'utf8');
-    } catch (error) {
-      console.error(`Warning: Could not cache sorted ID to ${filePath}: ${error.message}`);
-    }
-  }
 
   cacheDocWordCounts(filePath) {
     try {
@@ -278,21 +178,8 @@ class DocumentIDGenerator {
     }
   }
 
-  cacheIdWordCounts(filePath) {
-    try {
-      const sortedCounts = Array.from(this.idWordCounts.entries())
-        .sort((a, b) => b[1] - a[1]);
-      
-      const csvContent = 'word,count\n' + 
-        sortedCounts.map(([word, count]) => `${word},${count}`).join('\n');
-      
-      fs.writeFileSync(filePath, csvContent, 'utf8');
-    } catch (error) {
-      console.error(`Warning: Could not cache ID word counts to ${filePath}: ${error.message}`);
-    }
-  }
 
-  generateIds(documents, docWordCountPath = null, idWordCountPath = null, sortedIdsPath = null) {
+  generateIds(documents, docWordCountPath = null) {
     // Load existing data from cache files if available
     if (docWordCountPath && fs.existsSync(docWordCountPath)) {
       this.loadDocWordCounts(docWordCountPath);
@@ -300,18 +187,21 @@ class DocumentIDGenerator {
       this.buildDocWordCounts(documents);
     }
     
-    if (idWordCountPath) {
-      this.loadIdWordCounts(idWordCountPath);
-    }
-    
-    if (sortedIdsPath) {
-      this.loadExistingSortedIds(sortedIdsPath);
-    }
-    
     const ids = [];
+    const usedIds = new Set();
     
     for (let i = 0; i < documents.length; i++) {
-      const id = this.generateId(documents[i], i, sortedIdsPath);
+      let id = this.generateId(documents[i], i);
+      
+      // Ensure uniqueness among generated IDs
+      let counter = 1;
+      let originalId = id;
+      while (usedIds.has(id)) {
+        counter++;
+        id = `${originalId}_${counter}`;
+      }
+      
+      usedIds.add(id);
       ids.push(id);
     }
     
@@ -352,15 +242,12 @@ function main() {
     }
     
     const docWordCountPath = jsonFilePath.replace(/\.json$/i, '_doc_word_count.csv');
-    const idWordCountPath = jsonFilePath.replace(/\.json$/i, '_id_word_count.csv');
-    const sortedIdsPath = jsonFilePath.replace(/\.json$/i, '_ID_sorted_word.txt');
     
     const generator = new DocumentIDGenerator(minIdLength, maxIdLength);
-    const ids = generator.generateIds(documents, docWordCountPath, idWordCountPath, sortedIdsPath);
+    const ids = generator.generateIds(documents, docWordCountPath);
     
     // Cache the word count data
     generator.cacheDocWordCounts(docWordCountPath);
-    generator.cacheIdWordCounts(idWordCountPath);
     
     const results = documents.map((doc, index) => ({
       id: ids[index],
@@ -371,8 +258,6 @@ function main() {
     fs.writeFileSync(outputPath, JSON.stringify(results, null, 2));
     console.log(`Generated IDs written to: ${outputPath}`);
     console.log(`Document word counts cached to: ${docWordCountPath}`);
-    console.log(`ID word counts cached to: ${idWordCountPath}`);
-    console.log(`Sorted IDs cached to: ${sortedIdsPath}`);
     
   } catch (error) {
     console.error(`Error processing file: ${error.message}`);
