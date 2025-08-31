@@ -24,31 +24,15 @@ class DocumentIDGenerator {
       .filter(word => word.length >= 3 && !/\d/.test(word));
   }
 
-  calculatePositionWeight(position) {
-    if (position >= 300) return 0;
-    if (position === 0) return 1;
-    return Math.max(0, 1 - (position / 300));
-  }
-
   buildDocWordCounts(documents) {
     const wordCounts = new Map();
     
     for (const doc of documents) {
       const words = this.preprocessText(doc);
-      const processedWords = new Map();
+      const uniqueWordsInDoc = new Set(words);
       
-      // Calculate weighted count for each word based on its first occurrence position
-      for (let i = 0; i < words.length; i++) {
-        const word = words[i];
-        if (!processedWords.has(word)) {
-          const weight = this.calculatePositionWeight(i);
-          processedWords.set(word, weight);
-        }
-      }
-      
-      // Add weighted counts to global word counts
-      for (const [word, weight] of processedWords) {
-        wordCounts.set(word, (wordCounts.get(word) || 0) + weight);
+      for (const word of uniqueWordsInDoc) {
+        wordCounts.set(word, (wordCounts.get(word) || 0) + 1);
       }
     }
     
@@ -70,7 +54,7 @@ class DocumentIDGenerator {
         for (const line of lines) {
           if (line.trim()) {
             const [word, count] = line.split(',');
-            const countNum = parseFloat(count);
+            const countNum = parseInt(count);
             this.docWordCounts.set(word, countNum);
             counts.push(countNum);
           }
@@ -261,7 +245,7 @@ class DocumentIDGenerator {
         .sort((a, b) => b[1] - a[1]);
       
       const csvContent = 'word,count\n' + 
-        sortedCounts.map(([word, count]) => `${word},${count.toFixed(6)}`).join('\n');
+        sortedCounts.map(([word, count]) => `${word},${count}`).join('\n');
       
       fs.writeFileSync(filePath, csvContent, 'utf8');
     } catch (error) {
