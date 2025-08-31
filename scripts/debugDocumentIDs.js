@@ -2,56 +2,34 @@
 
 import fs from 'fs';
 import path from 'path';
+import { DocumentIDGenerator } from './createDocumentIDs.js';
 
-class DebugDocumentIDGenerator {
+class DebugDocumentIDGenerator extends DocumentIDGenerator {
   constructor(minIdLength = 30, maxIdLength = 50) {
-    this.minIdLength = minIdLength;
-    this.maxIdLength = maxIdLength;
-    this.docWordCounts = new Map();
-    this.idWordCounts = new Map();
-    this.usedSortedIds = new Set();
+    super(minIdLength, maxIdLength);
   }
 
   preprocessText(text) {
     console.log(`\n=== PREPROCESSING TEXT: "${text}" ===`);
-    const words = text
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[^\w\s\u00C0-\u017F]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .split(' ')
-      .filter(word => word.length >= 3 && !/\d/.test(word));
-    
+    const words = super.preprocessText(text);
     console.log(`Preprocessed words:`, words);
     return words;
   }
 
   buildDocWordCounts(documents) {
     console.log('\n=== BUILDING WORD COUNTS ===');
-    const wordCounts = new Map();
-    
-    for (const doc of documents) {
-      const words = this.preprocessText(doc);
-      const uniqueWordsInDoc = new Set(words);
-      
-      for (const word of uniqueWordsInDoc) {
-        wordCounts.set(word, (wordCounts.get(word) || 0) + 1);
-      }
-    }
-    
-    this.docWordCounts = wordCounts;
-    console.log('Word counts built:', Array.from(wordCounts.entries()));
+    super.buildDocWordCounts(documents);
+    console.log('Word counts built:', Array.from(this.docWordCounts.entries()));
   }
 
   calculateWordScore(word, docPosition, countWeight) {
+    const score = super.calculateWordScore(word, docPosition, countWeight);
     const wordCount = this.docWordCounts.get(word) || 0;
-    const score = docPosition + countWeight * wordCount;
     console.log(`  "${word}": position=${docPosition}, count=${wordCount}, weight=${countWeight}, score=${score}`);
     return score;
   }
 
-  generateId(document, documentIndex, sortedIdsFilePath) {
+  generateId(document, documentIndex) {
     console.log(`\n=== GENERATING ID FOR DOCUMENT ${documentIndex} ===`);
     console.log(`Document: "${document}"`);
     
@@ -74,7 +52,7 @@ class DebugDocumentIDGenerator {
     
     const selectedWords = [];
     const usedWords = new Set();
-    const countWeights = [3, 4, 5, 6, 7];
+    const countWeights = [1, 2, 3, 4, 5]; // Use same weights as parent class
     let currentLength = 0;
     
     // Select words iteratively with different countWeights
@@ -114,6 +92,43 @@ class DebugDocumentIDGenerator {
           console.log(`Selected words so far:`, selectedWords.map(w => w.word));
         } else if (newLength > this.maxIdLength && currentLength >= this.minIdLength) {
           console.log(`STOPPED: Would exceed maxLength (${this.maxIdLength}) but already meet minLength (${this.minIdLength})`);
+          break;
+        }
+      }
+    }
+    
+    // Handle minimum length requirement (same logic as parent class)
+    if (currentLength < this.minIdLength && selectedWords.length < uniqueWords.length) {
+      const lastCountWeight = countWeights[countWeights.length - 1];
+      console.log(`\n--- ENSURING MINIMUM LENGTH (${this.minIdLength}) ---`);
+      
+      while (currentLength < this.minIdLength && selectedWords.length < uniqueWords.length) {
+        let bestWord = null;
+        let bestScore = Infinity;
+        
+        for (const wordObj of uniqueWords) {
+          if (usedWords.has(wordObj.word)) continue;
+          
+          const score = this.calculateWordScore(wordObj.word, wordObj.docPosition, lastCountWeight);
+          if (score < bestScore) {
+            bestScore = score;
+            bestWord = wordObj;
+          }
+        }
+        
+        if (bestWord) {
+          const newLength = currentLength + (selectedWords.length > 0 ? 1 : 0) + bestWord.word.length;
+          console.log(`Adding for min length: "${bestWord.word}" (${bestWord.word.length}), new total=${newLength}`);
+          
+          if (currentLength < this.minIdLength) {
+            selectedWords.push(bestWord);
+            usedWords.add(bestWord.word);
+            currentLength = newLength;
+            console.log(`SELECTED: "${bestWord.word}"`);
+          } else {
+            break;
+          }
+        } else {
           break;
         }
       }
