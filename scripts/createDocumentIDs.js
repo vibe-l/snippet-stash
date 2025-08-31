@@ -156,13 +156,14 @@ class DocumentIDGenerator {
 
   preprocessText(text) {
     this.log(`\n=== PREPROCESSING TEXT: "${text}" ===`);
+    const stopwords = new Set(['will', 'was', 'were', 'been', 'are', 'is', 'be', 'am']);
     const words = text
       .toLowerCase()
       .replace(/[^\w\s\u00C0-\u024F\u1E00-\u1EFF]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim()
       .split(' ')
-      .filter(word => word.length >= 3 && !/\d/.test(word));
+      .filter(word => word.length >= 3 && !/\d/.test(word) && !stopwords.has(word));
     
     // Apply lemmatization if vocabulary is available
     const processedWords = this.vocabulary.size > 0 
@@ -178,6 +179,7 @@ class DocumentIDGenerator {
     
     // First pass: build vocabulary without lemmatization
     this.log('Building vocabulary...');
+    const stopwords = new Set(['was', 'were', 'been', 'are', 'is', 'be', 'am']);
     for (const doc of documents) {
       const words = doc
         .toLowerCase()
@@ -185,7 +187,7 @@ class DocumentIDGenerator {
         .replace(/\s+/g, ' ')
         .trim()
         .split(' ')
-        .filter(word => word.length >= 3 && !/\d/.test(word));
+        .filter(word => word.length >= 3 && !/\d/.test(word) && !stopwords.has(word));
       
       for (const word of words) {
         this.vocabulary.add(word);
@@ -264,7 +266,7 @@ class DocumentIDGenerator {
     
     const selectedWords = [];
     const usedWords = new Set();
-    const countWeights = [1, 1, 1, 1, 1, 1];
+    const countWeights = [1, 2, 3, 1, 2, 3, ];
     let currentLength = 0;
     
     // Select words iteratively with different countWeights
