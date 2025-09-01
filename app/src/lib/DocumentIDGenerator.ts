@@ -1,12 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import { IRREGULAR_MAPPINGS, SUFFIXES } from '../../../scripts/config/lemmatization.js';
-import { DEFAULT_CONFIG, STOPWORDS, TEXT_PROCESSING, FILE_EXTENSIONS, CSV_HEADERS, ERROR_MESSAGES } from '../../../scripts/config/constants.js';
-
-interface WordPair {
-  original: string;
-  lemmatized: string;
-}
+import { DEFAULT_CONFIG, TEXT_PROCESSING, CSV_HEADERS, ERROR_MESSAGES } from '../../../scripts/config/constants.js';
+import { TextPreprocessingService, WordPair } from './TextPreprocessingService.js';
 
 interface WordData {
   word: string;
@@ -23,9 +18,22 @@ export class DocumentIDGenerator {
   private verbose: boolean;
   private verboseDocuments: Set<number>;
   private currentDocumentIndex: number | null;
+  private preprocessingService: TextPreprocessingService;
 
   constructor(minIdLength: number = DEFAULT_CONFIG.MIN_ID_LENGTH, maxMeanWordCount: number | null = null, verbose: boolean = false, verboseDocuments: Set<number> | number[] = new Set()) {
-    // Input validation
+    this.validateConstructorParams(minIdLength, maxMeanWordCount, verbose);
+    
+    this.minIdLength = minIdLength;
+    this.maxMeanWordCount = maxMeanWordCount;
+    this.docWordCounts = new Map();
+    this.vocabulary = new Set();
+    this.verbose = verbose;
+    this.verboseDocuments = this.normalizeVerboseDocuments(verboseDocuments);
+    this.currentDocumentIndex = null;
+    this.preprocessingService = new TextPreprocessingService(this.vocabulary, this.log.bind(this));
+  }
+
+  private validateConstructorParams(minIdLength: number, maxMeanWordCount: number | null, verbose: boolean): void {
     if (typeof minIdLength !== 'number' || minIdLength < 1) {
       throw new Error(ERROR_MESSAGES.MIN_ID_LENGTH);
     }
@@ -35,14 +43,10 @@ export class DocumentIDGenerator {
     if (typeof verbose !== 'boolean') {
       throw new Error(ERROR_MESSAGES.VERBOSE);
     }
-    
-    this.minIdLength = minIdLength;
-    this.maxMeanWordCount = maxMeanWordCount;
-    this.docWordCounts = new Map();
-    this.vocabulary = new Set(); // Set of all unique words from corpus
-    this.verbose = verbose;
-    this.verboseDocuments = verboseDocuments instanceof Set ? verboseDocuments : new Set(verboseDocuments || []); // Always ensure it's a Set
-    this.currentDocumentIndex = null; // Track which document we're currently processing
+  }
+
+  private normalizeVerboseDocuments(verboseDocuments: Set<number> | number[]): Set<number> {
+    return verboseDocuments instanceof Set ? verboseDocuments : new Set(verboseDocuments || []);
   }
 
   private log(...args: any[]): void {
@@ -59,87 +63,6 @@ export class DocumentIDGenerator {
     }
   }
 
-  private is2LetterAcronym(originalWord: string): boolean {
-    return originalWord.length === 2 && originalWord === originalWord.toUpperCase();
-  }
-
-  private shouldSkip2LetterWord(originalWord: string): boolean {
-    return originalWord.length === 2 && !this.is2LetterAcronym(originalWord);
-  }
-
-  private lemmatizeWord(word: string): string {
-    // Check irregular mappings first
-    if (IRREGULAR_MAPPINGS[word] && this.vocabulary.has(IRREGULAR_MAPPINGS[word])) {
-      this.log(`  Irregular lemmatized "${word}" → "${IRREGULAR_MAPPINGS[word]}"`);
-      return IRREGULAR_MAPPINGS[word];
-    }
-    
-    // Try removing each suffix and check if resulting lemma exists in vocabulary
-    for (const suffix of SUFFIXES) {
-      if (word.endsWith(suffix) && word.length > suffix.length + DEFAULT_CONFIG.MIN_LEMMA_LENGTH - 1) {
-        const lemma = word.slice(0, -suffix.length);
-        if (this.vocabulary.has(lemma)) {
-          this.log(`  Suffix lemmatized "${word}" → "${lemma}"`);
-          return lemma;
-        }
-      }
-    }
-    
-    // Special case for -ies → -y
-    if (word.endsWith('ies') && word.length > 5) {
-      const lemma = word.slice(0, -3) + 'y';
-      if (this.vocabulary.has(lemma)) {
-        this.log(`  Special lemmatized "${word}" → "${lemma}"`);
-        return lemma;
-      }
-    }
-    
-    return word; // Return original if no valid lemma found
-  }
-
-  private preprocessText(text: string): string[];
-  private preprocessText(text: string, returnOriginals: true): WordPair[];
-  private preprocessText(text: string, returnOriginals: boolean = false): string[] | WordPair[] {
-    this.log(`\n=== PREPROCESSING TEXT: "${text}" ===`);
-    
-    // Split text into words while preserving original case
-    const originalWords = text
-      .replace(TEXT_PROCESSING.WORD_REGEX, ' ')
-      .replace(TEXT_PROCESSING.WHITESPACE_REGEX, ' ')
-      .trim()
-      .split(' ');
-    
-    // Filter and process words
-    const validWords: string[] = [];
-    const validOriginalWords: string[] = [];
-    
-    for (const originalWord of originalWords) {
-      const lowerWord = originalWord.toLowerCase();
-      
-      if (lowerWord.length >= DEFAULT_CONFIG.MIN_WORD_LENGTH && !TEXT_PROCESSING.NUMBER_REGEX.test(lowerWord) && !STOPWORDS.has(lowerWord) && !this.shouldSkip2LetterWord(originalWord)) {
-        validWords.push(lowerWord);
-        validOriginalWords.push(originalWord);
-      }
-    }
-    
-    if (returnOriginals) {
-      // Return array of objects with original case and lemmatized versions
-      const wordPairs: WordPair[] = validWords.map((word, index) => ({
-        original: validOriginalWords[index], // Keep original case
-        lemmatized: this.vocabulary.size > 0 ? this.lemmatizeWord(word) : word
-      }));
-      this.log(`Preprocessed word pairs:`, wordPairs);
-      return wordPairs;
-    } else {
-      // Apply lemmatization if vocabulary is available (for word count building)
-      const processedWords = this.vocabulary.size > 0 
-        ? validWords.map(word => this.lemmatizeWord(word))
-        : validWords;
-      
-      this.log(`Preprocessed words:`, processedWords);
-      return processedWords;
-    }
-  }
 
   private buildDocWordCounts(documents: string[]): void {
     this.log('\n=== BUILDING WORD COUNTS ===');
@@ -147,27 +70,14 @@ export class DocumentIDGenerator {
     // Single pass: build vocabulary and word counts together
     const wordCounts = new Map<string, number>();
     
-    // First build vocabulary from raw words
-    for (const doc of documents) {
-      const originalWords = doc
-        .replace(TEXT_PROCESSING.WORD_REGEX, ' ')
-        .replace(TEXT_PROCESSING.WHITESPACE_REGEX, ' ')
-        .trim()
-        .split(' ');
-      
-      for (const originalWord of originalWords) {
-        const lowerWord = originalWord.toLowerCase();
-        
-        if (lowerWord.length >= DEFAULT_CONFIG.MIN_WORD_LENGTH && !TEXT_PROCESSING.NUMBER_REGEX.test(lowerWord) && !STOPWORDS.has(lowerWord) && !this.shouldSkip2LetterWord(originalWord)) {
-          this.vocabulary.add(lowerWord);
-        }
-      }
-    }
-    this.log(`Vocabulary built with ${this.vocabulary.size} unique words`);
+    // Build vocabulary using preprocessing service
+    this.vocabulary = this.preprocessingService.buildVocabularyFromDocuments(documents);
+    // Update the preprocessing service with the new vocabulary
+    this.preprocessingService = new TextPreprocessingService(this.vocabulary, this.log.bind(this));
     
-    // Then build word counts with lemmatization in same loop
+    // Then build word counts with lemmatization
     for (const doc of documents) {
-      const words = this.preprocessText(doc); // This returns lemmatized words for counting
+      const words = this.preprocessingService.preprocessText(doc); // This returns lemmatized words for counting
       const uniqueWordsInDoc = new Set(words);
       
       for (const word of uniqueWordsInDoc) {
@@ -221,6 +131,8 @@ export class DocumentIDGenerator {
         }
       }
       
+      // Update preprocessing service with loaded vocabulary
+      this.preprocessingService = new TextPreprocessingService(this.vocabulary, this.log.bind(this));
       this.log(`Loaded ${loadedCount} word counts and built vocabulary from cache`);
       
     } catch (error) {
@@ -395,7 +307,7 @@ export class DocumentIDGenerator {
     this.log(`\n=== GENERATING ID FOR DOCUMENT ${documentIndex} ===`);
     this.log(`Document: "${document}"`);
     
-    const wordPairs = this.preprocessText(document, true);
+    const wordPairs = this.preprocessingService.preprocessText(document, true);
     if (wordPairs.length === 0) {
       return `document_${documentIndex}`;
     }
