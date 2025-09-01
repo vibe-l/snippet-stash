@@ -30,6 +30,8 @@ export const searchHistory = pgTable("search_history", {
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
+}).extend({
+  id: z.number().optional(),
 });
 
 export const insertSnippetSchema = createInsertSchema(snippets).omit({

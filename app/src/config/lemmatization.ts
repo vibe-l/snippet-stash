@@ -1,4 +1,4 @@
-export const IRREGULAR_MAPPINGS = {
+export const IRREGULAR_MAPPINGS: { [key: string]: string } = {
   // Irregular verbs (present/past/past participle forms)
   'was': 'be', 'were': 'be', 'been': 'be', 'am': 'be', 'is': 'be', 'are': 'be',
   'has': 'have', 'had': 'have', 'having': 'have',

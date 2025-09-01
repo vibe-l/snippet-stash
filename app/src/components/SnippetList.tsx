@@ -8,7 +8,7 @@ interface SnippetListProps {
   snippets: Snippet[];
   isLoading: boolean;
   onUpdate: (snippet: Snippet) => void;
-  onDelete: (id: number) => void;
+  onDelete: (id: string) => void;
   onCopy: (snippet: Snippet) => void;
   allTags: string[];
 }

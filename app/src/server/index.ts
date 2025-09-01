@@ -10,6 +10,7 @@ import postgres from 'postgres';
 import { schema } from '../lib/zero-schema.js';
 import { createMutators as createClientMutators } from '../lib/mutators.js';
 import type { InsertSearchHistory } from '../lib/schema.js';
+import { nanoid } from 'nanoid';
 
 // Initialize the database connection.
 // The connection string should be in the ZERO_UPSTREAM_DB environment variable.
@@ -28,29 +29,37 @@ function createServerMutators() {
             const { query, selected_tags, filter_mode, score } = search;
 
             // Use the raw postgres transaction to find if an identical search already exists.
-            const existing = await tx.dbTransaction`
+            const existing = await (tx.dbTransaction as any)`
                 SELECT id, score FROM search_history
-                WHERE query = ${query} AND selected_tags = ${selected_tags} AND filter_mode = ${filter_mode}
+                WHERE query = ${query} AND selected_tags = ${selected_tags || []} AND filter_mode = ${filter_mode}
                 LIMIT 1
             `;
 
             if (existing.length > 0) {
                 // If it exists, update the score and last_used_at timestamp.
                 const existingEntry = existing[0];
-                await tx.dbTransaction`
+                await (tx.dbTransaction as any)`
                     UPDATE search_history
                     SET score = ${existingEntry.score + (score || 1)}, last_used_at = NOW()
                     WHERE id = ${existingEntry.id}
                 `;
             } else {
                 // If it doesn't exist, create a new entry using the standard mutator.
-                await tx.mutate.searchHistory.insert(search);
+                const now = new Date().getTime();
+                await tx.mutate.searchHistory.insert({
+                    ...search,
+                    selected_tags: selected_tags || [],
+                    score: score || 1,
+                    id: nanoid(),
+                    created_at: now,
+                    last_used_at: now,
+                });
             }
         },
         // Override clearSearchHistory for efficient server-side deletion
         clearSearchHistory: async (tx: ServerTransaction<typeof schema, postgres.TransactionSql>) => {
             // Use raw SQL for efficient bulk deletion on the server
-            await tx.dbTransaction`DELETE FROM search_history`;
+            await (tx.dbTransaction as any)`DELETE FROM search_history`;
         },
     };
 }

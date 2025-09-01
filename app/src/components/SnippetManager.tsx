@@ -108,7 +108,7 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
       id: updatedSnippet.id,
       body: updatedSnippet.body,
       tags: updatedSnippet.tags,
-    }).client.then(() => {
+    }).then(() => {
       toast({ title: "Snippet updated successfully" });
     }).catch(() => {
       toast({ title: "Failed to update snippet", variant: "destructive" });
@@ -168,12 +168,12 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
 
   // Filter snippets using FlexSearch and tags
   const filteredSnippets = useMemo(() => {
-    let results = snippets;
+    let results = typedSnippets;
 
     // Apply text search using FlexSearch
     if (effectiveSearchText.trim()) {
       const searchResults = searchIndex.search(effectiveSearchText);
-      results = searchResults.map(index => snippets[index as number]);
+      results = searchResults.map(index => typedSnippets[index as number]);
     }
 
     // Apply tag filtering
@@ -186,7 +186,7 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
     }
 
     return results;
-  }, [snippets, effectiveSearchText, effectiveSelectedTags, effectiveFilterMode, searchIndex]);
+  }, [typedSnippets, effectiveSearchText, effectiveSelectedTags, effectiveFilterMode, searchIndex]);
 
   // Get available tags for "and" mode filtering
   const getAvailableTags = () => {
@@ -196,11 +196,11 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
 
     // In "and" mode, filter the list to show only tags that exist on snippets that
     // match both the currently selected tags AND the current search query.
-    let baseSnippets = snippets;
+    let baseSnippets = typedSnippets;
 
     if (effectiveSearchText.trim()) {
       const searchResults = searchIndex.search(effectiveSearchText);
-      baseSnippets = searchResults.map(index => snippets[index as number]);
+      baseSnippets = searchResults.map(index => typedSnippets[index as number]);
     }
     
     const snippetsWithSelectedTags = baseSnippets.filter(snippet =>
