@@ -84,7 +84,6 @@ class DocumentIDGenerator {
       'moves': 'move', 'moved': 'move', 'moving': 'move',
       'lives': 'live', 'lived': 'live', 'living': 'live',
       'believes': 'believe', 'believed': 'believe', 'believing': 'believe',
-      'brings': 'bring', 'brought': 'bring', 'bringing': 'bring',
       'builds': 'build', 'built': 'build', 'building': 'build',
       'buys': 'buy', 'bought': 'buy', 'buying': 'buy',
       'catches': 'catch', 'caught': 'catch', 'catching': 'catch',
@@ -218,9 +217,11 @@ class DocumentIDGenerator {
   buildDocWordCounts(documents) {
     this.log('\n=== BUILDING WORD COUNTS ===');
     
-    // First pass: build vocabulary without lemmatization
-    this.log('Building vocabulary...');
+    // Single pass: build vocabulary and word counts together
     const stopwords = new Set(['was', 'were', 'been', 'are', 'is', 'be', 'am']);
+    const wordCounts = new Map();
+    
+    // First build vocabulary from raw words
     for (const doc of documents) {
       const originalWords = doc
         .replace(/[^\w\s\u00C0-\u024F\u1E00-\u1EFF]/g, ' ')
@@ -238,9 +239,7 @@ class DocumentIDGenerator {
     }
     this.log(`Vocabulary built with ${this.vocabulary.size} unique words`);
     
-    // Second pass: build word counts with lemmatization
-    const wordCounts = new Map();
-    
+    // Then build word counts with lemmatization in same loop
     for (const doc of documents) {
       const words = this.preprocessText(doc); // This returns lemmatized words for counting
       const uniqueWordsInDoc = new Set(words);
@@ -317,6 +316,8 @@ class DocumentIDGenerator {
     const removedWords = [];
     const usedWords = new Set(); // Track words already added to prevent duplicates (using lemmatized form)
     let wordIndex = 0;
+    let currentLength = 0; // Track length without string concatenation
+    let totalWordCount = 0; // Track total count without reduce
     
     this.log('Starting word selection...');
     
@@ -332,21 +333,23 @@ class DocumentIDGenerator {
       }
       
       // Add the word to our ID array with position information (store original for ID, lemmatized for count)
-      idWords.push({ word: original, lemmatized, wordCount, position: wordIndex });
+      const wordData = { word: original, lemmatized, wordCount, position: wordIndex };
+      idWords.push(wordData);
       usedWords.add(lemmatized);
+      // Calculate current ID length properly: word length + underscore (except for first word)
+      currentLength = idWords.map(w => w.word).join('_').length;
+      totalWordCount += wordCount;
+      
       this.log(`Added "${original}" (lemmatized: "${lemmatized}", count: ${wordCount}, position: ${wordIndex}) to ID array`);
       
-      // Check if we have enough length (using original words for ID)
-      const currentIdString = idWords.map(w => w.word).join('_');
-      const hasMinLength = currentIdString.length >= this.minIdLength;
+      // Check if we have enough length
+      const hasMinLength = currentLength >= this.minIdLength;
       
       // Calculate mean word count
-      const totalWordCount = idWords.reduce((sum, w) => sum + w.wordCount, 0);
       const meanWordCount = totalWordCount / idWords.length;
       const meanBelowThreshold = meanWordCount <= this.maxMeanWordCount;
       
-      this.log(`Current ID: "${currentIdString}" (length: ${currentIdString.length})`);
-      this.log(`Mean word count: ${meanWordCount.toFixed(2)} (threshold: ${this.maxMeanWordCount})`);
+      this.log(`Current length: ${currentLength}, Mean word count: ${meanWordCount.toFixed(2)} (threshold: ${this.maxMeanWordCount})`);
       this.log(`Min length met: ${hasMinLength}, Mean below threshold: ${meanBelowThreshold}`);
       
       // If we meet both conditions, we're done
@@ -357,7 +360,6 @@ class DocumentIDGenerator {
       
       // If mean is too high, remove the word with highest count
       if (!meanBelowThreshold) {
-        // Find the word with highest count
         let maxCount = -1;
         let maxIndex = -1;
         for (let i = 0; i < idWords.length; i++) {
@@ -371,7 +373,10 @@ class DocumentIDGenerator {
           const removedWord = idWords[maxIndex];
           removedWords.push(removedWord);
           idWords.splice(maxIndex, 1);
-          usedWords.delete(removedWord.lemmatized); // Remove from used words set (using lemmatized form)
+          usedWords.delete(removedWord.lemmatized);
+          // Recalculate current ID length properly after removal
+          currentLength = idWords.map(w => w.word).join('_').length;
+          totalWordCount -= removedWord.wordCount;
           this.log(`Removed "${removedWord.word}" (lemmatized: "${removedWord.lemmatized}", count: ${removedWord.wordCount}, position: ${removedWord.position}) - highest count`);
         }
       }
@@ -380,9 +385,8 @@ class DocumentIDGenerator {
     }
     
     // After processing all words, check if we need to add words back to meet minimum length
-    let currentIdString = idWords.map(w => w.word).join('_');
-    if (currentIdString.length < this.minIdLength && removedWords.length > 0) {
-      this.log(`\n=== ID LENGTH BELOW MINIMUM (${currentIdString.length} < ${this.minIdLength}) ===`);
+    if (currentLength < this.minIdLength && removedWords.length > 0) {
+      this.log(`\n=== ID LENGTH BELOW MINIMUM (${currentLength} < ${this.minIdLength}) ===`);
       this.log('Attempting to add back removed words...');
       
       // Sort removed words by wordCount (ascending) to add lowest count words first
@@ -390,7 +394,7 @@ class DocumentIDGenerator {
       this.log('Removed words sorted by count:', removedWords.map(w => `${w.word}(${w.wordCount})`));
       
       for (const wordObj of removedWords) {
-        // Skip if word is already in the ID (shouldn't happen but safety check) - using lemmatized form
+        // Skip if word is already in the ID (shouldn't happen but safety check)
         if (usedWords.has(wordObj.lemmatized)) {
           this.log(`Skipped adding back duplicate word "${wordObj.word}" (lemmatized: "${wordObj.lemmatized}")`);
           continue;
@@ -408,14 +412,13 @@ class DocumentIDGenerator {
         
         // Insert the word at the correct position
         idWords.splice(insertIndex, 0, wordObj);
-        usedWords.add(wordObj.lemmatized); // Add back to used words set (using lemmatized form)
+        usedWords.add(wordObj.lemmatized);
+        // Recalculate current ID length properly after insertion
+        currentLength = idWords.map(w => w.word).join('_').length;
         this.log(`Added back "${wordObj.word}" (lemmatized: "${wordObj.lemmatized}", count: ${wordObj.wordCount}) at position ${insertIndex}`);
+        this.log(`New length: ${currentLength}`);
         
-        // Check if we now meet the minimum length requirement
-        currentIdString = idWords.map(w => w.word).join('_');
-        this.log(`New ID: "${currentIdString}" (length: ${currentIdString.length})`);
-        
-        if (currentIdString.length >= this.minIdLength) {
+        if (currentLength >= this.minIdLength) {
           this.log('Minimum length requirement met, stopping');
           break;
         }
