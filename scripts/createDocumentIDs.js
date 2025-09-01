@@ -4,12 +4,11 @@ import fs from 'fs';
 import path from 'path';
 
 class DocumentIDGenerator {
-  constructor(minIdLength = 30, maxIdLength = 50, verbose = false, verboseDocuments = null) {
+  constructor(minIdLength = 30, maxAverageWordCount = 5, verbose = false, verboseDocuments = null) {
     this.minIdLength = minIdLength;
-    this.maxIdLength = maxIdLength;
+    this.maxAverageWordCount = maxAverageWordCount;
     this.docWordCounts = new Map();
     this.vocabulary = new Set(); // Set of all unique words from corpus
-    this.usedSortedIds = new Set();
     this.verbose = verbose;
     this.verboseDocuments = verboseDocuments; // Set of document indices to debug
     this.currentDocumentIndex = null; // Track which document we're currently processing
@@ -233,15 +232,6 @@ class DocumentIDGenerator {
     }
   }
 
-
-
-  calculateWordScore(word, docPosition, countWeight) {
-    const wordCount = this.docWordCounts.get(word) || 0;
-    const score = docPosition + countWeight * wordCount;
-    this.log(`  "${word}": position=${docPosition}, count=${wordCount}, weight=${countWeight}, score=${score}`);
-    return score;
-  }
-
   generateId(document, documentIndex) {
     this.currentDocumentIndex = documentIndex;
     this.log(`\n=== GENERATING ID FOR DOCUMENT ${documentIndex} ===`);
@@ -252,116 +242,120 @@ class DocumentIDGenerator {
       return `document_${documentIndex}`;
     }
     
-    // Remove duplicate words while preserving order and position
-    const uniqueWords = [];
-    const seenWords = new Set();
-    for (let i = 0; i < words.length; i++) {
-      if (!seenWords.has(words[i])) {
-        seenWords.add(words[i]);
-        uniqueWords.push({ word: words[i], docPosition: i });
+    const idWords = [];
+    const removedWords = [];
+    const usedWords = new Set(); // Track words already added to prevent duplicates
+    let wordIndex = 0;
+    
+    this.log('Starting word selection...');
+    
+    while (wordIndex < words.length) {
+      const word = words[wordIndex];
+      const wordCount = this.docWordCounts.get(word) || 0;
+      
+      // Skip if word is already in the ID
+      if (usedWords.has(word)) {
+        this.log(`Skipped duplicate word "${word}" at position ${wordIndex}`);
+        wordIndex++;
+        continue;
       }
+      
+      // Add the word to our ID array with position information
+      idWords.push({ word, wordCount, position: wordIndex });
+      usedWords.add(word);
+      this.log(`Added "${word}" (count: ${wordCount}, position: ${wordIndex}) to ID array`);
+      
+      // Check if we have enough length
+      const currentIdString = idWords.map(w => w.word).join('_');
+      const hasMinLength = currentIdString.length >= this.minIdLength;
+      
+      // Calculate average word count
+      const totalWordCount = idWords.reduce((sum, w) => sum + w.wordCount, 0);
+      const avgWordCount = totalWordCount / idWords.length;
+      const avgBelowThreshold = avgWordCount <= this.maxAverageWordCount;
+      
+      this.log(`Current ID: "${currentIdString}" (length: ${currentIdString.length})`);
+      this.log(`Average word count: ${avgWordCount.toFixed(2)} (threshold: ${this.maxAverageWordCount})`);
+      this.log(`Min length met: ${hasMinLength}, Avg below threshold: ${avgBelowThreshold}`);
+      
+      // If we meet both conditions, we're done
+      if (hasMinLength && avgBelowThreshold) {
+        this.log('Both conditions met, stopping');
+        break;
+      }
+      
+      // If average is too high, remove the word with highest count
+      if (!avgBelowThreshold) {
+        // Find the word with highest count
+        let maxCount = -1;
+        let maxIndex = -1;
+        for (let i = 0; i < idWords.length; i++) {
+          if (idWords[i].wordCount > maxCount) {
+            maxCount = idWords[i].wordCount;
+            maxIndex = i;
+          }
+        }
+        
+        if (maxIndex !== -1) {
+          const removedWord = idWords[maxIndex];
+          removedWords.push(removedWord);
+          idWords.splice(maxIndex, 1);
+          usedWords.delete(removedWord.word); // Remove from used words set
+          this.log(`Removed "${removedWord.word}" (count: ${removedWord.wordCount}, position: ${removedWord.position}) - highest count`);
+        }
+      }
+      
+      wordIndex++;
     }
     
-    this.log('Unique words with positions:', uniqueWords);
-    
-    const selectedWords = [];
-    const usedWords = new Set();
-    const countWeights = [1, 2, 3, 1, 2, 3, ];
-    let currentLength = 0;
-    
-    // Select words iteratively with different countWeights
-    for (let iteration = 0; iteration < countWeights.length && selectedWords.length < uniqueWords.length; iteration++) {
-      const countWeight = countWeights[iteration];
-      this.log(`\n--- ITERATION ${iteration}, countWeight=${countWeight} ---`);
+    // After processing all words, check if we need to add words back to meet minimum length
+    let currentIdString = idWords.map(w => w.word).join('_');
+    if (currentIdString.length < this.minIdLength && removedWords.length > 0) {
+      this.log(`\n=== ID LENGTH BELOW MINIMUM (${currentIdString.length} < ${this.minIdLength}) ===`);
+      this.log('Attempting to add back removed words...');
       
-      let bestWord = null;
-      let bestScore = Infinity;
+      // Sort removed words by wordCount (ascending) to add lowest count words first
+      removedWords.sort((a, b) => a.wordCount - b.wordCount);
+      this.log('Removed words sorted by count:', removedWords.map(w => `${w.word}(${w.wordCount})`));
       
-      // Find the word with the lowest score for this countWeight
-      for (const wordObj of uniqueWords) {
+      for (const wordObj of removedWords) {
+        // Skip if word is already in the ID (shouldn't happen but safety check)
         if (usedWords.has(wordObj.word)) {
-          this.log(`  "${wordObj.word}": SKIPPED (already used)`);
+          this.log(`Skipped adding back duplicate word "${wordObj.word}"`);
           continue;
         }
         
-        const score = this.calculateWordScore(wordObj.word, wordObj.docPosition, countWeight);
-        if (score < bestScore) {
-          bestScore = score;
-          bestWord = wordObj;
-          this.log(`    NEW BEST: "${wordObj.word}" with score ${score}`);
-        }
-      }
-      
-      this.log(`Best word for iteration ${iteration}: "${bestWord?.word}" (score: ${bestScore})`);
-      
-      if (bestWord) {
-        const newLength = currentLength + (selectedWords.length > 0 ? 1 : 0) + bestWord.word.length;
-        this.log(`Length check: current=${currentLength}, adding="${bestWord.word}" (${bestWord.word.length}), new total=${newLength}, max=${this.maxIdLength}`);
-        
-        if (newLength <= this.maxIdLength) {
-          selectedWords.push(bestWord);
-          usedWords.add(bestWord.word);
-          currentLength = newLength;
-          this.log(`SELECTED: "${bestWord.word}"`);
-          this.log(`Selected words so far:`, selectedWords.map(w => w.word));
-        } else if (newLength > this.maxIdLength && currentLength >= this.minIdLength) {
-          this.log(`STOPPED: Would exceed maxLength (${this.maxIdLength}) but already meet minLength (${this.minIdLength})`);
-          break;
-        }
-      }
-    }
-    
-    // If we don't have enough length, add more words with the last countWeight
-    if (currentLength < this.minIdLength && selectedWords.length < uniqueWords.length) {
-      const lastCountWeight = countWeights[countWeights.length - 1];
-      this.log(`\n--- ENSURING MINIMUM LENGTH (${this.minIdLength}) ---`);
-      
-      while (currentLength < this.minIdLength && selectedWords.length < uniqueWords.length) {
-        let bestWord = null;
-        let bestScore = Infinity;
-        
-        for (const wordObj of uniqueWords) {
-          if (usedWords.has(wordObj.word)) continue;
-          
-          const score = this.calculateWordScore(wordObj.word, wordObj.docPosition, lastCountWeight);
-          if (score < bestScore) {
-            bestScore = score;
-            bestWord = wordObj;
-          }
-        }
-        
-        if (bestWord) {
-          const newLength = currentLength + (selectedWords.length > 0 ? 1 : 0) + bestWord.word.length;
-          this.log(`Adding for min length: "${bestWord.word}" (${bestWord.word.length}), new total=${newLength}`);
-          
-          // Always add the word if we haven't reached minLength, even if it exceeds maxLength
-          if (currentLength < this.minIdLength) {
-            selectedWords.push(bestWord);
-            usedWords.add(bestWord.word);
-            currentLength = newLength;
-            this.log(`SELECTED: "${bestWord.word}"`);
+        // Find the correct insertion position based on original document position
+        let insertIndex = 0;
+        for (let i = 0; i < idWords.length; i++) {
+          if (idWords[i].position < wordObj.position) {
+            insertIndex = i + 1;
           } else {
             break;
           }
-        } else {
+        }
+        
+        // Insert the word at the correct position
+        idWords.splice(insertIndex, 0, wordObj);
+        usedWords.add(wordObj.word); // Add back to used words set
+        this.log(`Added back "${wordObj.word}" (count: ${wordObj.wordCount}) at position ${insertIndex}`);
+        
+        // Check if we now meet the minimum length requirement
+        currentIdString = idWords.map(w => w.word).join('_');
+        this.log(`New ID: "${currentIdString}" (length: ${currentIdString.length})`);
+        
+        if (currentIdString.length >= this.minIdLength) {
+          this.log('Minimum length requirement met, stopping');
           break;
         }
       }
     }
     
-    this.log(`\n=== FINAL SELECTION ===`);
-    this.log(`Selected words:`, selectedWords.map(w => w.word));
-    
-    if (selectedWords.length === 0) {
+    if (idWords.length === 0) {
       return `document_${documentIndex}`;
     }
     
-    // Return words in document order
-    const finalId = selectedWords
-      .sort((a, b) => a.docPosition - b.docPosition)
-      .map(w => w.word)
-      .join('_');
-      
+    const finalId = idWords.map(w => w.word).join('_');
     this.log(`Final ID: "${finalId}"`);
     return finalId;
   }
@@ -417,10 +411,10 @@ function main() {
   const args = process.argv.slice(2);
   
   if (args.length === 0) {
-    console.error('Usage: node createDocumentIDs.js <json_file_path> [minIdLength] [maxIdLength] [--verbose|-v [doc_numbers]]');
-    console.error('Example: node createDocumentIDs.js documents.json 30 50 --verbose');
-    console.error('Example: node createDocumentIDs.js documents.json 30 50 -v 241');
-    console.error('Example: node createDocumentIDs.js documents.json 30 50 -v 0,2,5');
+    console.error('Usage: node createDocumentIDs.js <json_file_path> [minIdLength] [maxAverageWordCount] [--verbose|-v [doc_numbers]]');
+    console.error('Example: node createDocumentIDs.js documents.json 30 5 --verbose');
+    console.error('Example: node createDocumentIDs.js documents.json 30 5 -v 241');
+    console.error('Example: node createDocumentIDs.js documents.json 30 5 -v 0,2,5');
     console.error('Options:');
     console.error('  --verbose, -v [doc_numbers]    Enable verbose debug output');
     console.error('                                 Optionally specify comma-separated document indices (0-based)');
@@ -430,7 +424,7 @@ function main() {
   // Parse arguments
   let jsonFilePath = args[0];
   let minIdLength = 30;
-  let maxIdLength = 50;
+  let maxAverageWordCount = 5;
   let verbose = false;
   let verboseDocuments = null;
   
@@ -454,7 +448,7 @@ function main() {
     } else if (i === 1 && !isNaN(parseInt(arg))) {
       minIdLength = parseInt(arg);
     } else if (i === 2 && !isNaN(parseInt(arg))) {
-      maxIdLength = parseInt(arg);
+      maxAverageWordCount = parseInt(arg);
     }
   }
   
@@ -479,7 +473,7 @@ function main() {
     
     const docWordCountPath = jsonFilePath.replace(/\.json$/i, '_doc_word_count.csv');
     
-    const generator = new DocumentIDGenerator(minIdLength, maxIdLength, verbose, verboseDocuments);
+    const generator = new DocumentIDGenerator(minIdLength, maxAverageWordCount, verbose, verboseDocuments);
     const ids = generator.generateIds(documents, docWordCountPath);
     
     // Cache the word count data
