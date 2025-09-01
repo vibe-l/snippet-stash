@@ -4,9 +4,9 @@ import fs from 'fs';
 import path from 'path';
 
 class DocumentIDGenerator {
-  constructor(minIdLength = 30, maxAverageWordCount = 5, verbose = false, verboseDocuments = null) {
+  constructor(minIdLength = 30, maxMeanWordCount = null, verbose = false, verboseDocuments = null) {
     this.minIdLength = minIdLength;
-    this.maxAverageWordCount = maxAverageWordCount;
+    this.maxMeanWordCount = maxMeanWordCount;
     this.docWordCounts = new Map();
     this.vocabulary = new Set(); // Set of all unique words from corpus
     this.verbose = verbose;
@@ -153,24 +153,46 @@ class DocumentIDGenerator {
     return word; // Return original if no valid lemma found
   }
 
-  preprocessText(text) {
+  preprocessText(text, returnOriginals = false) {
     this.log(`\n=== PREPROCESSING TEXT: "${text}" ===`);
     const stopwords = new Set(['will', 'was', 'were', 'been', 'are', 'is', 'be', 'am']);
-    const words = text
-      .toLowerCase()
+    
+    // Split text into words while preserving original case
+    const originalWords = text
       .replace(/[^\w\s\u00C0-\u024F\u1E00-\u1EFF]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim()
-      .split(' ')
-      .filter(word => word.length >= 3 && !/\d/.test(word) && !stopwords.has(word));
+      .split(' ');
     
-    // Apply lemmatization if vocabulary is available
-    const processedWords = this.vocabulary.size > 0 
-      ? words.map(word => this.lemmatizeWord(word))
-      : words;
+    // Filter and process words
+    const validWords = [];
+    const validOriginalWords = [];
     
-    this.log(`Preprocessed words:`, processedWords);
-    return processedWords;
+    for (const originalWord of originalWords) {
+      const lowerWord = originalWord.toLowerCase();
+      if (lowerWord.length >= 2 && !/\d/.test(lowerWord) && !stopwords.has(lowerWord)) {
+        validWords.push(lowerWord);
+        validOriginalWords.push(originalWord);
+      }
+    }
+    
+    if (returnOriginals) {
+      // Return array of objects with original case and lemmatized versions
+      const wordPairs = validWords.map((word, index) => ({
+        original: validOriginalWords[index], // Keep original case
+        lemmatized: this.vocabulary.size > 0 ? this.lemmatizeWord(word) : word
+      }));
+      this.log(`Preprocessed word pairs:`, wordPairs);
+      return wordPairs;
+    } else {
+      // Apply lemmatization if vocabulary is available (for word count building)
+      const processedWords = this.vocabulary.size > 0 
+        ? validWords.map(word => this.lemmatizeWord(word))
+        : validWords;
+      
+      this.log(`Preprocessed words:`, processedWords);
+      return processedWords;
+    }
   }
 
   buildDocWordCounts(documents) {
@@ -198,7 +220,7 @@ class DocumentIDGenerator {
     const wordCounts = new Map();
     
     for (const doc of documents) {
-      const words = this.preprocessText(doc);
+      const words = this.preprocessText(doc); // This returns lemmatized words for counting
       const uniqueWordsInDoc = new Set(words);
       
       for (const word of uniqueWordsInDoc) {
@@ -237,55 +259,55 @@ class DocumentIDGenerator {
     this.log(`\n=== GENERATING ID FOR DOCUMENT ${documentIndex} ===`);
     this.log(`Document: "${document}"`);
     
-    const words = this.preprocessText(document);
-    if (words.length === 0) {
+    const wordPairs = this.preprocessText(document, true); // Get both original and lemmatized
+    if (wordPairs.length === 0) {
       return `document_${documentIndex}`;
     }
     
     const idWords = [];
     const removedWords = [];
-    const usedWords = new Set(); // Track words already added to prevent duplicates
+    const usedWords = new Set(); // Track words already added to prevent duplicates (using original form)
     let wordIndex = 0;
     
     this.log('Starting word selection...');
     
-    while (wordIndex < words.length) {
-      const word = words[wordIndex];
-      const wordCount = this.docWordCounts.get(word) || 0;
+    while (wordIndex < wordPairs.length) {
+      const { original, lemmatized } = wordPairs[wordIndex];
+      const wordCount = this.docWordCounts.get(lemmatized) || 0; // Use lemmatized for count lookup
       
-      // Skip if word is already in the ID
-      if (usedWords.has(word)) {
-        this.log(`Skipped duplicate word "${word}" at position ${wordIndex}`);
+      // Skip if word is already in the ID (using original form)
+      if (usedWords.has(original)) {
+        this.log(`Skipped duplicate word "${original}" at position ${wordIndex}`);
         wordIndex++;
         continue;
       }
       
-      // Add the word to our ID array with position information
-      idWords.push({ word, wordCount, position: wordIndex });
-      usedWords.add(word);
-      this.log(`Added "${word}" (count: ${wordCount}, position: ${wordIndex}) to ID array`);
+      // Add the word to our ID array with position information (store original for ID, lemmatized for count)
+      idWords.push({ word: original, lemmatized, wordCount, position: wordIndex });
+      usedWords.add(original);
+      this.log(`Added "${original}" (lemmatized: "${lemmatized}", count: ${wordCount}, position: ${wordIndex}) to ID array`);
       
-      // Check if we have enough length
+      // Check if we have enough length (using original words for ID)
       const currentIdString = idWords.map(w => w.word).join('_');
       const hasMinLength = currentIdString.length >= this.minIdLength;
       
-      // Calculate average word count
+      // Calculate mean word count
       const totalWordCount = idWords.reduce((sum, w) => sum + w.wordCount, 0);
-      const avgWordCount = totalWordCount / idWords.length;
-      const avgBelowThreshold = avgWordCount <= this.maxAverageWordCount;
+      const meanWordCount = totalWordCount / idWords.length;
+      const meanBelowThreshold = meanWordCount <= this.maxMeanWordCount;
       
       this.log(`Current ID: "${currentIdString}" (length: ${currentIdString.length})`);
-      this.log(`Average word count: ${avgWordCount.toFixed(2)} (threshold: ${this.maxAverageWordCount})`);
-      this.log(`Min length met: ${hasMinLength}, Avg below threshold: ${avgBelowThreshold}`);
+      this.log(`Mean word count: ${meanWordCount.toFixed(2)} (threshold: ${this.maxMeanWordCount})`);
+      this.log(`Min length met: ${hasMinLength}, Mean below threshold: ${meanBelowThreshold}`);
       
       // If we meet both conditions, we're done
-      if (hasMinLength && avgBelowThreshold) {
+      if (hasMinLength && meanBelowThreshold) {
         this.log('Both conditions met, stopping');
         break;
       }
       
-      // If average is too high, remove the word with highest count
-      if (!avgBelowThreshold) {
+      // If mean is too high, remove the word with highest count
+      if (!meanBelowThreshold) {
         // Find the word with highest count
         let maxCount = -1;
         let maxIndex = -1;
@@ -300,8 +322,8 @@ class DocumentIDGenerator {
           const removedWord = idWords[maxIndex];
           removedWords.push(removedWord);
           idWords.splice(maxIndex, 1);
-          usedWords.delete(removedWord.word); // Remove from used words set
-          this.log(`Removed "${removedWord.word}" (count: ${removedWord.wordCount}, position: ${removedWord.position}) - highest count`);
+          usedWords.delete(removedWord.word); // Remove from used words set (using original word)
+          this.log(`Removed "${removedWord.word}" (lemmatized: "${removedWord.lemmatized}", count: ${removedWord.wordCount}, position: ${removedWord.position}) - highest count`);
         }
       }
       
@@ -319,7 +341,7 @@ class DocumentIDGenerator {
       this.log('Removed words sorted by count:', removedWords.map(w => `${w.word}(${w.wordCount})`));
       
       for (const wordObj of removedWords) {
-        // Skip if word is already in the ID (shouldn't happen but safety check)
+        // Skip if word is already in the ID (shouldn't happen but safety check) - using original word
         if (usedWords.has(wordObj.word)) {
           this.log(`Skipped adding back duplicate word "${wordObj.word}"`);
           continue;
@@ -337,8 +359,8 @@ class DocumentIDGenerator {
         
         // Insert the word at the correct position
         idWords.splice(insertIndex, 0, wordObj);
-        usedWords.add(wordObj.word); // Add back to used words set
-        this.log(`Added back "${wordObj.word}" (count: ${wordObj.wordCount}) at position ${insertIndex}`);
+        usedWords.add(wordObj.word); // Add back to used words set (using original word)
+        this.log(`Added back "${wordObj.word}" (lemmatized: "${wordObj.lemmatized}", count: ${wordObj.wordCount}) at position ${insertIndex}`);
         
         // Check if we now meet the minimum length requirement
         currentIdString = idWords.map(w => w.word).join('_');
@@ -385,6 +407,19 @@ class DocumentIDGenerator {
       this.buildDocWordCounts(documents);
     }
     
+    // Calculate mean word count from corpus and use it if maxMeanWordCount wasn't set
+    if (this.docWordCounts.size > 0) {
+      const totalWordCount = Array.from(this.docWordCounts.values()).reduce((sum, count) => sum + count, 0);
+      const corpusMeanWordCount = totalWordCount / this.docWordCounts.size;
+      
+      if (this.maxMeanWordCount === null) {
+        this.maxMeanWordCount = corpusMeanWordCount;
+        console.log(`Using corpus mean word count: ${corpusMeanWordCount}`);
+      } else {
+        console.log(`Corpus mean word count: ${corpusMeanWordCount.toFixed(2)}, using maxMeanWordCount: ${this.maxMeanWordCount}`);
+      }
+    }
+    
     const ids = [];
     const usedIds = new Set();
     
@@ -411,7 +446,7 @@ function main() {
   const args = process.argv.slice(2);
   
   if (args.length === 0) {
-    console.error('Usage: node createDocumentIDs.js <json_file_path> [minIdLength] [maxAverageWordCount] [--verbose|-v [doc_numbers]]');
+    console.error('Usage: node createDocumentIDs.js <json_file_path> [minIdLength] [maxMeanWordCount] [--verbose|-v [doc_numbers]]');
     console.error('Example: node createDocumentIDs.js documents.json 30 5 --verbose');
     console.error('Example: node createDocumentIDs.js documents.json 30 5 -v 241');
     console.error('Example: node createDocumentIDs.js documents.json 30 5 -v 0,2,5');
@@ -424,7 +459,7 @@ function main() {
   // Parse arguments
   let jsonFilePath = args[0];
   let minIdLength = 30;
-  let maxAverageWordCount = 5;
+  let maxMeanWordCount = null; // Will be set to corpus mean if not provided
   let verbose = false;
   let verboseDocuments = null;
   
@@ -445,10 +480,10 @@ function main() {
           }
         }
       }
-    } else if (i === 1 && !isNaN(parseInt(arg))) {
+    } else if (i === 1 && !isNaN(parseFloat(arg))) {
       minIdLength = parseInt(arg);
-    } else if (i === 2 && !isNaN(parseInt(arg))) {
-      maxAverageWordCount = parseInt(arg);
+    } else if (i === 2 && !isNaN(parseFloat(arg))) {
+      maxMeanWordCount = parseFloat(arg);
     }
   }
   
@@ -473,7 +508,7 @@ function main() {
     
     const docWordCountPath = jsonFilePath.replace(/\.json$/i, '_doc_word_count.csv');
     
-    const generator = new DocumentIDGenerator(minIdLength, maxAverageWordCount, verbose, verboseDocuments);
+    const generator = new DocumentIDGenerator(minIdLength, maxMeanWordCount, verbose, verboseDocuments);
     const ids = generator.generateIds(documents, docWordCountPath);
     
     // Cache the word count data

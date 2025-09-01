@@ -68,8 +68,8 @@ function main() {
         if (id1 !== id2) {
           // IDs are different for the same document
           differences.push({
-            [`id_${file1Name}`]: id1,
-            [`id_${file2Name}`]: id2,
+            [file1Name]: id1,
+            [file2Name]: id2,
             document
           });
         }
@@ -77,7 +77,7 @@ function main() {
       } else {
         // Document exists only in file1
         differences.push({
-          [`id_${file1Name}`]: id1,
+          [file1Name]: id1,
           document
         });
       }
@@ -87,7 +87,7 @@ function main() {
     for (const [document, id2] of file2Map) {
       if (!file1Map.has(document)) {
         differences.push({
-          [`id_${file2Name}`]: id2,
+          [file2Name]: id2,
           document
         });
       }
