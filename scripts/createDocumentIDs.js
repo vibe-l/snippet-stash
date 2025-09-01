@@ -39,6 +39,14 @@ class DocumentIDGenerator {
     }
   }
 
+  is2LetterAcronym(originalWord) {
+    return originalWord.length === 2 && originalWord === originalWord.toUpperCase();
+  }
+
+  shouldSkip2LetterWord(originalWord) {
+    return originalWord.length === 2 && !this.is2LetterAcronym(originalWord);
+  }
+
   lemmatizeWord(word) {
     // Irregular verb and noun mappings
     const irregularMappings = {
@@ -181,12 +189,8 @@ class DocumentIDGenerator {
     
     for (const originalWord of originalWords) {
       const lowerWord = originalWord.toLowerCase();
-      // For 2-letter words, only keep acronyms (all uppercase)
-      const is2Letter = originalWord.length === 2;
-      const isAcronym = is2Letter && originalWord === originalWord.toUpperCase();
-      const shouldSkip2Letter = is2Letter && !isAcronym;
       
-      if (lowerWord.length >= 2 && !/\d/.test(lowerWord) && !stopwords.has(lowerWord) && !shouldSkip2Letter) {
+      if (lowerWord.length >= 2 && !/\d/.test(lowerWord) && !stopwords.has(lowerWord) && !this.shouldSkip2LetterWord(originalWord)) {
         validWords.push(lowerWord);
         validOriginalWords.push(originalWord);
       }
@@ -226,12 +230,8 @@ class DocumentIDGenerator {
       
       for (const originalWord of originalWords) {
         const lowerWord = originalWord.toLowerCase();
-        // For 2-letter words, only keep acronyms (all uppercase)
-        const is2Letter = originalWord.length === 2;
-        const isAcronym = is2Letter && originalWord === originalWord.toUpperCase();
-        const shouldSkip2Letter = is2Letter && !isAcronym;
         
-        if (lowerWord.length >= 2 && !/\d/.test(lowerWord) && !stopwords.has(lowerWord) && !shouldSkip2Letter) {
+        if (lowerWord.length >= 2 && !/\d/.test(lowerWord) && !stopwords.has(lowerWord) && !this.shouldSkip2LetterWord(originalWord)) {
           this.vocabulary.add(lowerWord);
         }
       }
