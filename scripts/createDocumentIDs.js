@@ -170,7 +170,12 @@ class DocumentIDGenerator {
     
     for (const originalWord of originalWords) {
       const lowerWord = originalWord.toLowerCase();
-      if (lowerWord.length >= 2 && !/\d/.test(lowerWord) && !stopwords.has(lowerWord)) {
+      // For 2-letter words, only keep acronyms (all uppercase)
+      const is2Letter = originalWord.length === 2;
+      const isAcronym = is2Letter && originalWord === originalWord.toUpperCase();
+      const shouldSkip2Letter = is2Letter && !isAcronym;
+      
+      if (lowerWord.length >= 2 && !/\d/.test(lowerWord) && !stopwords.has(lowerWord) && !shouldSkip2Letter) {
         validWords.push(lowerWord);
         validOriginalWords.push(originalWord);
       }
@@ -202,16 +207,22 @@ class DocumentIDGenerator {
     this.log('Building vocabulary...');
     const stopwords = new Set(['was', 'were', 'been', 'are', 'is', 'be', 'am']);
     for (const doc of documents) {
-      const words = doc
-        .toLowerCase()
+      const originalWords = doc
         .replace(/[^\w\s\u00C0-\u024F\u1E00-\u1EFF]/g, ' ')
         .replace(/\s+/g, ' ')
         .trim()
-        .split(' ')
-        .filter(word => word.length >= 3 && !/\d/.test(word) && !stopwords.has(word));
+        .split(' ');
       
-      for (const word of words) {
-        this.vocabulary.add(word);
+      for (const originalWord of originalWords) {
+        const lowerWord = originalWord.toLowerCase();
+        // For 2-letter words, only keep acronyms (all uppercase)
+        const is2Letter = originalWord.length === 2;
+        const isAcronym = is2Letter && originalWord === originalWord.toUpperCase();
+        const shouldSkip2Letter = is2Letter && !isAcronym;
+        
+        if (lowerWord.length >= 2 && !/\d/.test(lowerWord) && !stopwords.has(lowerWord) && !shouldSkip2Letter) {
+          this.vocabulary.add(lowerWord);
+        }
       }
     }
     this.log(`Vocabulary built with ${this.vocabulary.size} unique words`);
@@ -266,7 +277,7 @@ class DocumentIDGenerator {
     
     const idWords = [];
     const removedWords = [];
-    const usedWords = new Set(); // Track words already added to prevent duplicates (using original form)
+    const usedWords = new Set(); // Track words already added to prevent duplicates (using lemmatized form)
     let wordIndex = 0;
     
     this.log('Starting word selection...');
@@ -275,16 +286,16 @@ class DocumentIDGenerator {
       const { original, lemmatized } = wordPairs[wordIndex];
       const wordCount = this.docWordCounts.get(lemmatized) || 0; // Use lemmatized for count lookup
       
-      // Skip if word is already in the ID (using original form)
-      if (usedWords.has(original)) {
-        this.log(`Skipped duplicate word "${original}" at position ${wordIndex}`);
+      // Skip if word is already in the ID (using lemmatized form for comparison)
+      if (usedWords.has(lemmatized)) {
+        this.log(`Skipped duplicate word "${original}" (lemmatized: "${lemmatized}") at position ${wordIndex}`);
         wordIndex++;
         continue;
       }
       
       // Add the word to our ID array with position information (store original for ID, lemmatized for count)
       idWords.push({ word: original, lemmatized, wordCount, position: wordIndex });
-      usedWords.add(original);
+      usedWords.add(lemmatized);
       this.log(`Added "${original}" (lemmatized: "${lemmatized}", count: ${wordCount}, position: ${wordIndex}) to ID array`);
       
       // Check if we have enough length (using original words for ID)
@@ -322,7 +333,7 @@ class DocumentIDGenerator {
           const removedWord = idWords[maxIndex];
           removedWords.push(removedWord);
           idWords.splice(maxIndex, 1);
-          usedWords.delete(removedWord.word); // Remove from used words set (using original word)
+          usedWords.delete(removedWord.lemmatized); // Remove from used words set (using lemmatized form)
           this.log(`Removed "${removedWord.word}" (lemmatized: "${removedWord.lemmatized}", count: ${removedWord.wordCount}, position: ${removedWord.position}) - highest count`);
         }
       }
@@ -341,9 +352,9 @@ class DocumentIDGenerator {
       this.log('Removed words sorted by count:', removedWords.map(w => `${w.word}(${w.wordCount})`));
       
       for (const wordObj of removedWords) {
-        // Skip if word is already in the ID (shouldn't happen but safety check) - using original word
-        if (usedWords.has(wordObj.word)) {
-          this.log(`Skipped adding back duplicate word "${wordObj.word}"`);
+        // Skip if word is already in the ID (shouldn't happen but safety check) - using lemmatized form
+        if (usedWords.has(wordObj.lemmatized)) {
+          this.log(`Skipped adding back duplicate word "${wordObj.word}" (lemmatized: "${wordObj.lemmatized}")`);
           continue;
         }
         
@@ -359,7 +370,7 @@ class DocumentIDGenerator {
         
         // Insert the word at the correct position
         idWords.splice(insertIndex, 0, wordObj);
-        usedWords.add(wordObj.word); // Add back to used words set (using original word)
+        usedWords.add(wordObj.lemmatized); // Add back to used words set (using lemmatized form)
         this.log(`Added back "${wordObj.word}" (lemmatized: "${wordObj.lemmatized}", count: ${wordObj.wordCount}) at position ${insertIndex}`);
         
         // Check if we now meet the minimum length requirement
