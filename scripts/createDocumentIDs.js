@@ -1,530 +1,98 @@
 #!/usr/bin/env node
 
 import fs from 'fs';
-import path from 'path';
-import { IRREGULAR_MAPPINGS, SUFFIXES } from './config/lemmatization.js';
-import { DEFAULT_CONFIG, STOPWORDS, TEXT_PROCESSING, FILE_EXTENSIONS, CSV_HEADERS, CLI_MESSAGES, ERROR_MESSAGES } from './config/constants.js';
+import { DocumentIDGenerator } from '../app/src/lib/DocumentIDGenerator.js';
+import { CliParser } from './cli-parser.js';
+import { ERROR_MESSAGES, FILE_EXTENSIONS } from './config/constants.js';
 
-class DocumentIDGenerator {
-  constructor(minIdLength = DEFAULT_CONFIG.MIN_ID_LENGTH, maxMeanWordCount = null, verbose = false, verboseDocuments = new Set()) {
-    // Input validation
-    if (typeof minIdLength !== 'number' || minIdLength < 1) {
-      throw new Error(ERROR_MESSAGES.MIN_ID_LENGTH);
-    }
-    if (maxMeanWordCount !== null && (typeof maxMeanWordCount !== 'number' || maxMeanWordCount < 0)) {
-      throw new Error(ERROR_MESSAGES.MAX_MEAN_WORD_COUNT);
-    }
-    if (typeof verbose !== 'boolean') {
-      throw new Error(ERROR_MESSAGES.VERBOSE);
-    }
-    
-    this.minIdLength = minIdLength;
-    this.maxMeanWordCount = maxMeanWordCount;
-    this.docWordCounts = new Map();
-    this.vocabulary = new Set(); // Set of all unique words from corpus
-    this.verbose = verbose;
-    this.verboseDocuments = verboseDocuments instanceof Set ? verboseDocuments : new Set(verboseDocuments || []); // Always ensure it's a Set
-    this.currentDocumentIndex = null; // Track which document we're currently processing
+export class DocumentIdsCLI {
+  constructor() {
+    this.parser = new CliParser();
   }
 
-  log(...args) {
-    if (this.verbose) {
-      // If verboseDocuments has entries, only log for those document indices
-      if (this.verboseDocuments.size > 0 && this.currentDocumentIndex !== null) {
-        if (this.verboseDocuments.has(this.currentDocumentIndex)) {
-          console.log(...args);
-        }
-      } else if (this.verboseDocuments.size === 0) {
-        // If no specific documents specified, log everything (original behavior)
-        console.log(...args);
-      }
+  validateInputFile(filePath) {
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`File ${filePath} does not exist`);
     }
-  }
 
-  is2LetterAcronym(originalWord) {
-    return originalWord.length === 2 && originalWord === originalWord.toUpperCase();
-  }
-
-  shouldSkip2LetterWord(originalWord) {
-    return originalWord.length === 2 && !this.is2LetterAcronym(originalWord);
-  }
-
-  lemmatizeWord(word) {
-    // Check irregular mappings first
-    if (IRREGULAR_MAPPINGS[word] && this.vocabulary.has(IRREGULAR_MAPPINGS[word])) {
-      this.log(`  Irregular lemmatized "${word}" → "${IRREGULAR_MAPPINGS[word]}"`);
-      return IRREGULAR_MAPPINGS[word];
-    }
+    const content = fs.readFileSync(filePath, 'utf8');
+    const documents = JSON.parse(content);
     
-    // Try removing each suffix and check if resulting lemma exists in vocabulary
-    for (const suffix of SUFFIXES) {
-      if (word.endsWith(suffix) && word.length > suffix.length + DEFAULT_CONFIG.MIN_LEMMA_LENGTH - 1) {
-        const lemma = word.slice(0, -suffix.length);
-        if (this.vocabulary.has(lemma)) {
-          this.log(`  Suffix lemmatized "${word}" → "${lemma}"`);
-          return lemma;
-        }
-      }
-    }
-    
-    // Special case for -ies → -y
-    if (word.endsWith('ies') && word.length > 5) {
-      const lemma = word.slice(0, -3) + 'y';
-      if (this.vocabulary.has(lemma)) {
-        this.log(`  Special lemmatized "${word}" → "${lemma}"`);
-        return lemma;
-      }
-    }
-    
-    return word; // Return original if no valid lemma found
-  }
-
-  preprocessText(text, returnOriginals = false) {
-    this.log(`\n=== PREPROCESSING TEXT: "${text}" ===`);
-    
-    // Split text into words while preserving original case
-    const originalWords = text
-      .replace(TEXT_PROCESSING.WORD_REGEX, ' ')
-      .replace(TEXT_PROCESSING.WHITESPACE_REGEX, ' ')
-      .trim()
-      .split(' ');
-    
-    // Filter and process words
-    const validWords = [];
-    const validOriginalWords = [];
-    
-    for (const originalWord of originalWords) {
-      const lowerWord = originalWord.toLowerCase();
-      
-      if (lowerWord.length >= DEFAULT_CONFIG.MIN_WORD_LENGTH && !TEXT_PROCESSING.NUMBER_REGEX.test(lowerWord) && !STOPWORDS.has(lowerWord) && !this.shouldSkip2LetterWord(originalWord)) {
-        validWords.push(lowerWord);
-        validOriginalWords.push(originalWord);
-      }
-    }
-    
-    if (returnOriginals) {
-      // Return array of objects with original case and lemmatized versions
-      const wordPairs = validWords.map((word, index) => ({
-        original: validOriginalWords[index], // Keep original case
-        lemmatized: this.vocabulary.size > 0 ? this.lemmatizeWord(word) : word
-      }));
-      this.log(`Preprocessed word pairs:`, wordPairs);
-      return wordPairs;
-    } else {
-      // Apply lemmatization if vocabulary is available (for word count building)
-      const processedWords = this.vocabulary.size > 0 
-        ? validWords.map(word => this.lemmatizeWord(word))
-        : validWords;
-      
-      this.log(`Preprocessed words:`, processedWords);
-      return processedWords;
-    }
-  }
-
-  buildDocWordCounts(documents) {
-    this.log('\n=== BUILDING WORD COUNTS ===');
-    
-    // Single pass: build vocabulary and word counts together
-    const wordCounts = new Map();
-    
-    // First build vocabulary from raw words
-    for (const doc of documents) {
-      const originalWords = doc
-        .replace(TEXT_PROCESSING.WORD_REGEX, ' ')
-        .replace(TEXT_PROCESSING.WHITESPACE_REGEX, ' ')
-        .trim()
-        .split(' ');
-      
-      for (const originalWord of originalWords) {
-        const lowerWord = originalWord.toLowerCase();
-        
-        if (lowerWord.length >= DEFAULT_CONFIG.MIN_WORD_LENGTH && !TEXT_PROCESSING.NUMBER_REGEX.test(lowerWord) && !STOPWORDS.has(lowerWord) && !this.shouldSkip2LetterWord(originalWord)) {
-          this.vocabulary.add(lowerWord);
-        }
-      }
-    }
-    this.log(`Vocabulary built with ${this.vocabulary.size} unique words`);
-    
-    // Then build word counts with lemmatization in same loop
-    for (const doc of documents) {
-      const words = this.preprocessText(doc); // This returns lemmatized words for counting
-      const uniqueWordsInDoc = new Set(words);
-      
-      for (const word of uniqueWordsInDoc) {
-        wordCounts.set(word, (wordCounts.get(word) || 0) + 1);
-      }
-    }
-    
-    this.docWordCounts = wordCounts;
-    this.log('Word counts built:', Array.from(this.docWordCounts.entries()));
-  }
-
-  loadDocWordCounts(filePath) {
-    try {
-      if (!fs.existsSync(filePath)) {
-        throw new Error(`${ERROR_MESSAGES.FILE_NOT_EXIST}: ${filePath}`);
-      }
-      
-      const content = fs.readFileSync(filePath, 'utf8');
-      if (!content.trim()) {
-        throw new Error(ERROR_MESSAGES.FILE_EMPTY);
-      }
-      
-      const lines = content.split('\n');
-      if (lines.length < 2) {
-        throw new Error(ERROR_MESSAGES.FILE_HEADER);
-      }
-      
-      const dataLines = lines.slice(1); // Skip header
-      let loadedCount = 0;
-      
-      for (let i = 0; i < dataLines.length; i++) {
-        const line = dataLines[i].trim();
-        if (line) {
-          const parts = line.split(',');
-          if (parts.length !== 2) {
-            console.warn(`Warning: Skipping malformed line ${i + 2}: "${line}"`);
-            continue;
-          }
-          
-          const [word, countStr] = parts;
-          const countNum = parseInt(countStr, 10);
-          
-          if (isNaN(countNum) || countNum < 0) {
-            console.warn(`Warning: Skipping line ${i + 2} with invalid count: "${countStr}"`);
-            continue;
-          }
-          
-          this.docWordCounts.set(word, countNum);
-          this.vocabulary.add(word);
-          loadedCount++;
-        }
-      }
-      
-      this.log(`Loaded ${loadedCount} word counts and built vocabulary from cache`);
-      
-    } catch (error) {
-      throw new Error(`Failed to load doc word counts from ${filePath}: ${error.message}`);
-    }
-  }
-
-  generateId(document, documentIndex) {
-    this.currentDocumentIndex = documentIndex;
-    this.log(`\n=== GENERATING ID FOR DOCUMENT ${documentIndex} ===`);
-    this.log(`Document: "${document}"`);
-    
-    const wordPairs = this.preprocessText(document, true); // Get both original and lemmatized
-    if (wordPairs.length === 0) {
-      return `document_${documentIndex}`;
-    }
-    
-    const idWords = [];
-    const removedWords = [];
-    const usedWords = new Set(); // Track words already added to prevent duplicates (using lemmatized form)
-    let wordIndex = 0;
-    let currentLength = 0; // Track length without string concatenation
-    let totalWordCount = 0; // Track total count without reduce
-    
-    this.log('Starting word selection...');
-    
-    while (wordIndex < wordPairs.length) {
-      const { original, lemmatized } = wordPairs[wordIndex];
-      const wordCount = this.docWordCounts.get(lemmatized) || 0; // Use lemmatized for count lookup
-      
-      // Skip if word is already in the ID (using lemmatized form for comparison)
-      if (usedWords.has(lemmatized)) {
-        this.log(`Skipped duplicate word "${original}" (lemmatized: "${lemmatized}") at position ${wordIndex}`);
-        wordIndex++;
-        continue;
-      }
-      
-      // Add the word to our ID array with position information (store original for ID, lemmatized for count)
-      const wordData = { word: original, lemmatized, wordCount, position: wordIndex };
-      idWords.push(wordData);
-      usedWords.add(lemmatized);
-      // Calculate current ID length properly: word length + underscore (except for first word)
-      currentLength = idWords.map(w => w.word).join('_').length;
-      totalWordCount += wordCount;
-      
-      this.log(`Added "${original}" (lemmatized: "${lemmatized}", count: ${wordCount}, position: ${wordIndex}) to ID array`);
-      
-      // Check if we have enough length
-      const hasMinLength = currentLength >= this.minIdLength;
-      
-      // Calculate mean word count
-      const meanWordCount = totalWordCount / idWords.length;
-      const meanBelowThreshold = meanWordCount <= this.maxMeanWordCount;
-      
-      this.log(`Current length: ${currentLength}, Mean word count: ${meanWordCount.toFixed(2)} (threshold: ${this.maxMeanWordCount})`);
-      this.log(`Min length met: ${hasMinLength}, Mean below threshold: ${meanBelowThreshold}`);
-      
-      // If we meet both conditions, we're done
-      if (hasMinLength && meanBelowThreshold) {
-        this.log('Both conditions met, stopping');
-        break;
-      }
-      
-      // If mean is too high, remove the word with highest count
-      if (!meanBelowThreshold) {
-        let maxCount = -1;
-        let maxIndex = -1;
-        for (let i = 0; i < idWords.length; i++) {
-          if (idWords[i].wordCount > maxCount) {
-            maxCount = idWords[i].wordCount;
-            maxIndex = i;
-          }
-        }
-        
-        if (maxIndex !== -1) {
-          const removedWord = idWords[maxIndex];
-          removedWords.push(removedWord);
-          idWords.splice(maxIndex, 1);
-          usedWords.delete(removedWord.lemmatized);
-          // Recalculate current ID length properly after removal
-          currentLength = idWords.map(w => w.word).join('_').length;
-          totalWordCount -= removedWord.wordCount;
-          this.log(`Removed "${removedWord.word}" (lemmatized: "${removedWord.lemmatized}", count: ${removedWord.wordCount}, position: ${removedWord.position}) - highest count`);
-        }
-      }
-      
-      wordIndex++;
-    }
-    
-    // After processing all words, check if we need to add words back to meet minimum length
-    if (currentLength < this.minIdLength && removedWords.length > 0) {
-      this.log(`\n=== ID LENGTH BELOW MINIMUM (${currentLength} < ${this.minIdLength}) ===`);
-      this.log('Attempting to add back removed words...');
-      
-      // Sort removed words by wordCount (ascending) to add lowest count words first
-      removedWords.sort((a, b) => a.wordCount - b.wordCount);
-      this.log('Removed words sorted by count:', removedWords.map(w => `${w.word}(${w.wordCount})`));
-      
-      for (const wordObj of removedWords) {
-        // Skip if word is already in the ID (shouldn't happen but safety check)
-        if (usedWords.has(wordObj.lemmatized)) {
-          this.log(`Skipped adding back duplicate word "${wordObj.word}" (lemmatized: "${wordObj.lemmatized}")`);
-          continue;
-        }
-        
-        // Find the correct insertion position based on original document position
-        let insertIndex = 0;
-        for (let i = 0; i < idWords.length; i++) {
-          if (idWords[i].position < wordObj.position) {
-            insertIndex = i + 1;
-          } else {
-            break;
-          }
-        }
-        
-        // Insert the word at the correct position
-        idWords.splice(insertIndex, 0, wordObj);
-        usedWords.add(wordObj.lemmatized);
-        // Recalculate current ID length properly after insertion
-        currentLength = idWords.map(w => w.word).join('_').length;
-        this.log(`Added back "${wordObj.word}" (lemmatized: "${wordObj.lemmatized}", count: ${wordObj.wordCount}) at position ${insertIndex}`);
-        this.log(`New length: ${currentLength}`);
-        
-        if (currentLength >= this.minIdLength) {
-          this.log('Minimum length requirement met, stopping');
-          break;
-        }
-      }
-    }
-    
-    if (idWords.length === 0) {
-      return `document_${documentIndex}`;
-    }
-    
-    const finalId = idWords.map(w => w.word).join('_');
-    this.log(`Final ID: "${finalId}"`);
-    return finalId;
-  }
-
-
-
-  cacheDocWordCounts(filePath) {
-    try {
-      if (typeof filePath !== 'string' || !filePath.trim()) {
-        throw new Error(ERROR_MESSAGES.FILE_PATH_STRING);
-      }
-      
-      if (this.docWordCounts.size === 0) {
-        throw new Error(ERROR_MESSAGES.NO_WORD_COUNTS);
-      }
-      
-      // Build CSV content directly without intermediate array for large datasets
-      let csvContent = CSV_HEADERS.WORD_COUNT + '\n';
-      
-      if (this.docWordCounts.size < DEFAULT_CONFIG.LARGE_DATASET_THRESHOLD) {
-        // For smaller datasets, sort normally
-        const sortedCounts = Array.from(this.docWordCounts.entries())
-          .sort((a, b) => b[1] - a[1]);
-        csvContent += sortedCounts.map(([word, count]) => `${word},${count}`).join('\n');
-      } else {
-        // For larger datasets, write unsorted to avoid memory pressure
-        for (const [word, count] of this.docWordCounts.entries()) {
-          csvContent += `${word},${count}\n`;
-        }
-      }
-      
-      // Ensure directory exists
-      const dir = path.dirname(filePath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      
-      fs.writeFileSync(filePath, csvContent, 'utf8');
-    } catch (error) {
-      throw new Error(`Failed to cache doc word counts to ${filePath}: ${error.message}`);
-    }
-  }
-
-
-  generateIds(documents, docWordCountPath = null) {
-    // Input validation
     if (!Array.isArray(documents)) {
-      throw new Error(ERROR_MESSAGES.DOCUMENTS_ARRAY);
+      throw new Error(ERROR_MESSAGES.JSON_ARRAY);
     }
-    if (documents.length === 0) {
-      throw new Error(ERROR_MESSAGES.DOCUMENTS_EMPTY);
-    }
+    
     if (!documents.every(doc => typeof doc === 'string')) {
-      throw new Error(ERROR_MESSAGES.DOCUMENTS_STRINGS);
+      throw new Error(ERROR_MESSAGES.ARRAY_STRINGS);
     }
-    if (docWordCountPath !== null && typeof docWordCountPath !== 'string') {
-      throw new Error(ERROR_MESSAGES.DOC_WORD_COUNT_PATH);
-    }
+
+    return documents;
+  }
+
+  generateOutputPaths(inputPath) {
+    const docWordCountPath = inputPath.replace(
+      new RegExp(`\\${FILE_EXTENSIONS.JSON}$`, 'i'), 
+      '_doc_word_count' + FILE_EXTENSIONS.CSV
+    );
     
-    // Load existing data from cache files if available
+    const outputPath = inputPath.replace(
+      new RegExp(`\\${FILE_EXTENSIONS.JSON}$`, 'i'), 
+      '_IDs' + FILE_EXTENSIONS.JSON
+    );
+
+    return { docWordCountPath, outputPath };
+  }
+
+  run(args) {
     try {
-      if (docWordCountPath && fs.existsSync(docWordCountPath)) {
-        this.loadDocWordCounts(docWordCountPath);
-      } else {
-        this.buildDocWordCounts(documents);
-      }
+      const config = this.parser.parse(args);
+      const documents = this.validateInputFile(config.jsonFilePath);
+      const { docWordCountPath, outputPath } = this.generateOutputPaths(config.jsonFilePath);
+      
+      const generator = new DocumentIDGenerator(
+        config.minIdLength,
+        config.maxMeanWordCount,
+        config.verbose,
+        config.verboseDocuments
+      );
+      
+      const ids = generator.generateIds(documents, docWordCountPath);
+      
+      // Cache the word count data
+      generator.cacheDocWordCounts(docWordCountPath);
+      
+      const results = documents.map((doc, index) => ({
+        id: ids[index],
+        document: doc
+      }));
+      
+      fs.writeFileSync(outputPath, JSON.stringify(results, null, 2));
+      
+      console.log(`Generated IDs written to: ${outputPath}`);
+      console.log(`Document word counts cached to: ${docWordCountPath}`);
+      
     } catch (error) {
-      console.warn(`Warning: ${error.message}. Falling back to building word counts from documents.`);
-      this.buildDocWordCounts(documents);
-    }
-    
-    // Calculate mean word count from corpus and use it if maxMeanWordCount wasn't set
-    if (this.docWordCounts.size > 0) {
-      const totalWordCount = Array.from(this.docWordCounts.values()).reduce((sum, count) => sum + count, 0);
-      const corpusMeanWordCount = totalWordCount / this.docWordCounts.size;
-      
-      if (this.maxMeanWordCount === null) {
-        this.maxMeanWordCount = corpusMeanWordCount;
-        console.log(`Using corpus mean word count: ${corpusMeanWordCount}`);
+      if (error.message === 'No arguments provided') {
+        this.showUsage();
+        process.exit(1);
       } else {
-        console.log(`Corpus mean word count: ${corpusMeanWordCount.toFixed(2)}, using maxMeanWordCount: ${this.maxMeanWordCount}`);
+        console.error(`Error: ${error.message}`);
+        process.exit(1);
       }
     }
-    
-    const ids = [];
-    const usedIds = new Set();
-    
-    for (let i = 0; i < documents.length; i++) {
-      let id = this.generateId(documents[i], i);
-      
-      // Ensure uniqueness among generated IDs
-      let counter = 1;
-      let originalId = id;
-      while (usedIds.has(id)) {
-        counter++;
-        id = `${originalId}_${counter}`;
-      }
-      
-      usedIds.add(id);
-      ids.push(id);
-    }
-    
-    return ids;
+  }
+
+  showUsage() {
+    console.error(CliParser.getUsageMessage());
+    CliParser.getExamples().forEach(example => console.error(example));
+    console.error('Options:');
+    CliParser.getOptions().forEach(option => console.error(option));
   }
 }
 
 function main() {
-  const args = process.argv.slice(2);
-  
-  if (args.length === 0) {
-    console.error(CLI_MESSAGES.USAGE);
-    CLI_MESSAGES.EXAMPLES.forEach(example => console.error(example));
-    console.error('Options:');
-    CLI_MESSAGES.OPTIONS.forEach(option => console.error(option));
-    process.exit(1);
-  }
-  
-  // Parse arguments
-  let jsonFilePath = args[0];
-  let minIdLength = DEFAULT_CONFIG.MIN_ID_LENGTH;
-  let maxMeanWordCount = null; // Will be set to corpus mean if not provided
-  let verbose = false;
-  let verboseDocuments = null;
-  
-  // Process arguments
-  for (let i = 1; i < args.length; i++) {
-    const arg = args[i];
-    if (arg === '--verbose' || arg === '-v') {
-      verbose = true;
-      // Check if next argument is document numbers (single number or comma-separated)
-      if (i + 1 < args.length && !args[i + 1].startsWith('-')) {
-        const nextArg = args[i + 1];
-        // Check if it's a number or comma-separated numbers
-        if (TEXT_PROCESSING.DOC_NUMBER_REGEX.test(nextArg)) {
-          const docNumbers = nextArg.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n));
-          if (docNumbers.length > 0) {
-            verboseDocuments = new Set(docNumbers);
-            i++; // Skip the next argument since we consumed it
-          }
-        }
-      }
-    } else if (i === 1 && !isNaN(parseFloat(arg))) {
-      minIdLength = parseInt(arg);
-    } else if (i === 2 && !isNaN(parseFloat(arg))) {
-      maxMeanWordCount = parseFloat(arg);
-    }
-  }
-  
-  if (!fs.existsSync(jsonFilePath)) {
-    console.error(`Error: File ${jsonFilePath} does not exist`);
-    process.exit(1);
-  }
-  
-  try {
-    const jsonContent = fs.readFileSync(jsonFilePath, 'utf8');
-    const documents = JSON.parse(jsonContent);
-    
-    if (!Array.isArray(documents)) {
-      console.error(`Error: ${ERROR_MESSAGES.JSON_ARRAY}`);
-      process.exit(1);
-    }
-    
-    if (!documents.every(doc => typeof doc === 'string')) {
-      console.error(`Error: ${ERROR_MESSAGES.ARRAY_STRINGS}`);
-      process.exit(1);
-    }
-    
-    const docWordCountPath = jsonFilePath.replace(new RegExp(`\${FILE_EXTENSIONS.JSON}$`, 'i'), '_doc_word_count' + FILE_EXTENSIONS.CSV);
-    
-    const generator = new DocumentIDGenerator(minIdLength, maxMeanWordCount, verbose, verboseDocuments);
-    const ids = generator.generateIds(documents, docWordCountPath);
-    
-    // Cache the word count data
-    generator.cacheDocWordCounts(docWordCountPath);
-    
-    const results = documents.map((doc, index) => ({
-      id: ids[index],
-      document: doc
-    }));
-    
-    const outputPath = jsonFilePath.replace(new RegExp(`\${FILE_EXTENSIONS.JSON}$`, 'i'), '_IDs' + FILE_EXTENSIONS.JSON);
-    fs.writeFileSync(outputPath, JSON.stringify(results, null, 2));
-    console.log(`Generated IDs written to: ${outputPath}`);
-    console.log(`Document word counts cached to: ${docWordCountPath}`);
-    
-  } catch (error) {
-    console.error(`Error processing file: ${error.message}`);
-    process.exit(1);
-  }
+  const cli = new DocumentIdsCLI();
+  cli.run(process.argv.slice(2));
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
