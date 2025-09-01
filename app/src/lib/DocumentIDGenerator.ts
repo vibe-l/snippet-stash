@@ -228,128 +228,179 @@ export class DocumentIDGenerator {
     }
   }
 
-  private generateId(document: string, documentIndex: number): string {
-    this.currentDocumentIndex = documentIndex;
-    this.log(`\n=== GENERATING ID FOR DOCUMENT ${documentIndex} ===`);
-    this.log(`Document: "${document}"`);
+  private calculateCurrentIdLength(idWords: WordData[]): number {
+    return idWords.map(w => w.word).join('_').length;
+  }
+
+  private calculateMeanWordCount(totalWordCount: number, wordCount: number): number {
+    return totalWordCount / wordCount;
+  }
+
+  private isMeanBelowThreshold(meanWordCount: number): boolean {
+    return meanWordCount <= (this.maxMeanWordCount || Infinity);
+  }
+
+  private findHighestCountWordIndex(idWords: WordData[]): number {
+    let maxCount = -1;
+    let maxIndex = -1;
+    for (let i = 0; i < idWords.length; i++) {
+      if (idWords[i].wordCount > maxCount) {
+        maxCount = idWords[i].wordCount;
+        maxIndex = i;
+      }
+    }
+    return maxIndex;
+  }
+
+  private removeHighestCountWord(
+    idWords: WordData[], 
+    removedWords: WordData[], 
+    usedWords: Set<string>
+  ): { newLength: number; removedCount: number } {
+    const maxIndex = this.findHighestCountWordIndex(idWords);
     
-    const wordPairs = this.preprocessText(document, true); // Get both original and lemmatized
-    if (wordPairs.length === 0) {
-      return `document_${documentIndex}`;
+    if (maxIndex === -1) {
+      return { newLength: this.calculateCurrentIdLength(idWords), removedCount: 0 };
     }
     
+    const removedWord = idWords[maxIndex];
+    removedWords.push(removedWord);
+    idWords.splice(maxIndex, 1);
+    usedWords.delete(removedWord.lemmatized);
+    
+    const newLength = this.calculateCurrentIdLength(idWords);
+    this.log(`Removed "${removedWord.word}" (lemmatized: "${removedWord.lemmatized}", count: ${removedWord.wordCount}, position: ${removedWord.position}) - highest count`);
+    
+    return { newLength, removedCount: removedWord.wordCount };
+  }
+
+  private findInsertionIndex(idWords: WordData[], targetPosition: number): number {
+    let insertIndex = 0;
+    for (let i = 0; i < idWords.length; i++) {
+      if (idWords[i].position < targetPosition) {
+        insertIndex = i + 1;
+      } else {
+        break;
+      }
+    }
+    return insertIndex;
+  }
+
+  private addWordBackToId(
+    wordObj: WordData, 
+    idWords: WordData[], 
+    usedWords: Set<string>
+  ): number {
+    const insertIndex = this.findInsertionIndex(idWords, wordObj.position);
+    idWords.splice(insertIndex, 0, wordObj);
+    usedWords.add(wordObj.lemmatized);
+    
+    const newLength = this.calculateCurrentIdLength(idWords);
+    this.log(`Added back "${wordObj.word}" (lemmatized: "${wordObj.lemmatized}", count: ${wordObj.wordCount}) at position ${insertIndex}`);
+    this.log(`New length: ${newLength}`);
+    
+    return newLength;
+  }
+
+  private restoreWordsForMinimumLength(
+    idWords: WordData[], 
+    removedWords: WordData[], 
+    usedWords: Set<string>, 
+    currentLength: number
+  ): number {
+    if (currentLength >= this.minIdLength || removedWords.length === 0) {
+      return currentLength;
+    }
+    
+    this.log(`\n=== ID LENGTH BELOW MINIMUM (${currentLength} < ${this.minIdLength}) ===`);
+    this.log('Attempting to add back removed words...');
+    
+    removedWords.sort((a, b) => a.wordCount - b.wordCount);
+    this.log('Removed words sorted by count:', removedWords.map(w => `${w.word}(${w.wordCount})`));
+    
+    let updatedLength = currentLength;
+    
+    for (const wordObj of removedWords) {
+      if (usedWords.has(wordObj.lemmatized)) {
+        this.log(`Skipped adding back duplicate word "${wordObj.word}" (lemmatized: "${wordObj.lemmatized}")`);
+        continue;
+      }
+      
+      updatedLength = this.addWordBackToId(wordObj, idWords, usedWords);
+      
+      if (updatedLength >= this.minIdLength) {
+        this.log('Minimum length requirement met, stopping');
+        break;
+      }
+    }
+    
+    return updatedLength;
+  }
+
+  private selectWordsForId(wordPairs: WordPair[]): { idWords: WordData[]; removedWords: WordData[] } {
     const idWords: WordData[] = [];
     const removedWords: WordData[] = [];
-    const usedWords = new Set<string>(); // Track words already added to prevent duplicates (using lemmatized form)
+    const usedWords = new Set<string>();
     let wordIndex = 0;
-    let currentLength = 0; // Track length without string concatenation
-    let totalWordCount = 0; // Track total count without reduce
+    let currentLength = 0;
+    let totalWordCount = 0;
     
     this.log('Starting word selection...');
     
     while (wordIndex < wordPairs.length) {
       const { original, lemmatized } = wordPairs[wordIndex];
-      const wordCount = this.docWordCounts.get(lemmatized) || 0; // Use lemmatized for count lookup
+      const wordCount = this.docWordCounts.get(lemmatized) || 0;
       
-      // Skip if word is already in the ID (using lemmatized form for comparison)
       if (usedWords.has(lemmatized)) {
         this.log(`Skipped duplicate word "${original}" (lemmatized: "${lemmatized}") at position ${wordIndex}`);
         wordIndex++;
         continue;
       }
       
-      // Add the word to our ID array with position information (store original for ID, lemmatized for count)
       const wordData: WordData = { word: original, lemmatized, wordCount, position: wordIndex };
       idWords.push(wordData);
       usedWords.add(lemmatized);
-      // Calculate current ID length properly: word length + underscore (except for first word)
-      currentLength = idWords.map(w => w.word).join('_').length;
+      currentLength = this.calculateCurrentIdLength(idWords);
       totalWordCount += wordCount;
       
       this.log(`Added "${original}" (lemmatized: "${lemmatized}", count: ${wordCount}, position: ${wordIndex}) to ID array`);
       
-      // Check if we have enough length
       const hasMinLength = currentLength >= this.minIdLength;
-      
-      // Calculate mean word count
-      const meanWordCount = totalWordCount / idWords.length;
-      const meanBelowThreshold = meanWordCount <= (this.maxMeanWordCount || Infinity);
+      const meanWordCount = this.calculateMeanWordCount(totalWordCount, idWords.length);
+      const meanBelowThreshold = this.isMeanBelowThreshold(meanWordCount);
       
       this.log(`Current length: ${currentLength}, Mean word count: ${meanWordCount.toFixed(2)} (threshold: ${this.maxMeanWordCount})`);
       this.log(`Min length met: ${hasMinLength}, Mean below threshold: ${meanBelowThreshold}`);
       
-      // If we meet both conditions, we're done
       if (hasMinLength && meanBelowThreshold) {
         this.log('Both conditions met, stopping');
         break;
       }
       
-      // If mean is too high, remove the word with highest count
       if (!meanBelowThreshold) {
-        let maxCount = -1;
-        let maxIndex = -1;
-        for (let i = 0; i < idWords.length; i++) {
-          if (idWords[i].wordCount > maxCount) {
-            maxCount = idWords[i].wordCount;
-            maxIndex = i;
-          }
-        }
-        
-        if (maxIndex !== -1) {
-          const removedWord = idWords[maxIndex];
-          removedWords.push(removedWord);
-          idWords.splice(maxIndex, 1);
-          usedWords.delete(removedWord.lemmatized);
-          // Recalculate current ID length properly after removal
-          currentLength = idWords.map(w => w.word).join('_').length;
-          totalWordCount -= removedWord.wordCount;
-          this.log(`Removed "${removedWord.word}" (lemmatized: "${removedWord.lemmatized}", count: ${removedWord.wordCount}, position: ${removedWord.position}) - highest count`);
-        }
+        const { newLength, removedCount } = this.removeHighestCountWord(idWords, removedWords, usedWords);
+        currentLength = newLength;
+        totalWordCount -= removedCount;
       }
       
       wordIndex++;
     }
     
-    // After processing all words, check if we need to add words back to meet minimum length
-    if (currentLength < this.minIdLength && removedWords.length > 0) {
-      this.log(`\n=== ID LENGTH BELOW MINIMUM (${currentLength} < ${this.minIdLength}) ===`);
-      this.log('Attempting to add back removed words...');
-      
-      // Sort removed words by wordCount (ascending) to add lowest count words first
-      removedWords.sort((a, b) => a.wordCount - b.wordCount);
-      this.log('Removed words sorted by count:', removedWords.map(w => `${w.word}(${w.wordCount})`));
-      
-      for (const wordObj of removedWords) {
-        // Skip if word is already in the ID (shouldn't happen but safety check)
-        if (usedWords.has(wordObj.lemmatized)) {
-          this.log(`Skipped adding back duplicate word "${wordObj.word}" (lemmatized: "${wordObj.lemmatized}")`);
-          continue;
-        }
-        
-        // Find the correct insertion position based on original document position
-        let insertIndex = 0;
-        for (let i = 0; i < idWords.length; i++) {
-          if (idWords[i].position < wordObj.position) {
-            insertIndex = i + 1;
-          } else {
-            break;
-          }
-        }
-        
-        // Insert the word at the correct position
-        idWords.splice(insertIndex, 0, wordObj);
-        usedWords.add(wordObj.lemmatized);
-        // Recalculate current ID length properly after insertion
-        currentLength = idWords.map(w => w.word).join('_').length;
-        this.log(`Added back "${wordObj.word}" (lemmatized: "${wordObj.lemmatized}", count: ${wordObj.wordCount}) at position ${insertIndex}`);
-        this.log(`New length: ${currentLength}`);
-        
-        if (currentLength >= this.minIdLength) {
-          this.log('Minimum length requirement met, stopping');
-          break;
-        }
-      }
+    const finalLength = this.restoreWordsForMinimumLength(idWords, removedWords, usedWords, currentLength);
+    return { idWords, removedWords };
+  }
+
+  private generateId(document: string, documentIndex: number): string {
+    this.currentDocumentIndex = documentIndex;
+    this.log(`\n=== GENERATING ID FOR DOCUMENT ${documentIndex} ===`);
+    this.log(`Document: "${document}"`);
+    
+    const wordPairs = this.preprocessText(document, true);
+    if (wordPairs.length === 0) {
+      return `document_${documentIndex}`;
     }
+    
+    const { idWords } = this.selectWordsForId(wordPairs);
     
     if (idWords.length === 0) {
       return `document_${documentIndex}`;

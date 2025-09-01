@@ -1,0 +1,148 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Data file integrity > should generate consistent prompts_IDs.json and CSV files 1`] = `"3f48b29b1434c51ec0b7eee01e69e347296c4d28c90fe26134311b5dd8bba08c"`;
+
+exports[`Data file integrity > should generate consistent prompts_IDs.json and CSV files 2`] = `
+[
+  "word,count",
+  "the,221",
+  "please,194",
+  "and,163",
+  "that,108",
+  "for,91",
+  "follow,91",
+  "provide,80",
+  "your,78",
+  "answer,67",
+]
+`;
+
+exports[`Data file integrity > should maintain consistent prompts.json structure 1`] = `"898ca25150aa069a50aad30ffdb68a3e8561f16b9b6927c27f3b3f61c15cb5dc"`;
+
+exports[`Data structure validation > should maintain CSV header structure 1`] = `
+{
+  "hasValidRows": true,
+  "header": [
+    "word",
+    "count",
+  ],
+  "sampleRowCount": 5,
+  "totalRows": 2129,
+}
+`;
+
+exports[`Data structure validation > should maintain prompts.json schema 1`] = `
+{
+  "firstItemType": "string",
+  "length": 291,
+  "sampleKeys": [
+    "0",
+    "1",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "18",
+    "19",
+    "2",
+    "20",
+    "21",
+    "22",
+    "23",
+    "24",
+    "25",
+    "26",
+    "27",
+    "28",
+    "29",
+    "3",
+    "30",
+    "31",
+    "32",
+    "33",
+    "34",
+    "35",
+    "36",
+    "37",
+    "38",
+    "39",
+    "4",
+    "40",
+    "41",
+    "42",
+    "43",
+    "44",
+    "45",
+    "46",
+    "47",
+    "48",
+    "49",
+    "5",
+    "50",
+    "51",
+    "52",
+    "53",
+    "54",
+    "55",
+    "56",
+    "57",
+    "58",
+    "59",
+    "6",
+    "60",
+    "61",
+    "62",
+    "63",
+    "64",
+    "65",
+    "66",
+    "67",
+    "68",
+    "69",
+    "7",
+    "70",
+    "71",
+    "72",
+    "73",
+    "8",
+    "9",
+  ],
+  "type": "array",
+}
+`;
+
+exports[`Data structure validation > should maintain prompts_IDs.json schema 1`] = `
+{
+  "firstItemType": "object",
+  "length": 291,
+  "sampleKeys": [
+    "document",
+    "id",
+  ],
+  "type": "array",
+}
+`;
+
+exports[`Data structure validation > should track data file counts and sizes 1`] = `
+[
+  {
+    "filename": "prompts.json",
+    "sizeBytes": 113596,
+    "sizeCategory": "medium",
+  },
+  {
+    "filename": "prompts_IDs.json",
+    "sizeBytes": 133894,
+    "sizeCategory": "medium",
+  },
+  {
+    "filename": "prompts_doc_word_count.csv",
+    "sizeBytes": 22057,
+    "sizeCategory": "medium",
+  },
+]
+`;
