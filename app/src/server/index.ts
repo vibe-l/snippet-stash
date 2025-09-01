@@ -24,7 +24,7 @@ function createServerMutators() {
     return {
         ...clientMutators,
         // Override the `addSearchHistory` mutator to provide server-authoritative logic.
-        addSearchHistory: async (tx: ServerTransaction, search: InsertSearchHistory) => {
+        addSearchHistory: async (tx: ServerTransaction<typeof schema, postgres.TransactionSql>, search: InsertSearchHistory) => {
             const { query, selected_tags, filter_mode, score } = search;
 
             // Use the raw postgres transaction to find if an identical search already exists.
@@ -48,7 +48,7 @@ function createServerMutators() {
             }
         },
         // Override clearSearchHistory for efficient server-side deletion
-        clearSearchHistory: async (tx: ServerTransaction) => {
+        clearSearchHistory: async (tx: ServerTransaction<typeof schema, postgres.TransactionSql>) => {
             // Use raw SQL for efficient bulk deletion on the server
             await tx.dbTransaction`DELETE FROM search_history`;
         },

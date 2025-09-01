@@ -481,7 +481,7 @@ describe('DocumentIDGenerator', () => {
       const largeGenerator = new DocumentIDGenerator();
       
       const manyWords = Array(15000).fill(0).map((_, i) => [`word${i}`, i + 1]);
-      (largeGenerator as any).docWordCounts = new Map(manyWords);
+      (largeGenerator as any).wordCountManager.docWordCounts = new Map(manyWords);
 
       largeGenerator.cacheDocWordCounts(testCacheFile);
 

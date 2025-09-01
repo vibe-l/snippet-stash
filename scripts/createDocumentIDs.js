@@ -3,7 +3,7 @@
 import fs from 'fs';
 import { DocumentIDGenerator } from '../app/src/lib/DocumentIDGenerator.ts';
 import { CliParser } from './cli-parser.js';
-import { ERROR_MESSAGES, FILE_EXTENSIONS } from './config/constants.js';
+import { ERROR_MESSAGES, FILE_EXTENSIONS } from '../app/src/config/constants.js';
 
 export class DocumentIdsCLI {
   constructor() {

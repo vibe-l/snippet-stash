@@ -50,6 +50,7 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
   // Fetch snippets from database using Zero
   const snippetsQuery = zero.query.snippets.orderBy("updated_at", "desc");
   const [snippets = [], snippetsResult] = useQuery(snippetsQuery);
+  const typedSnippets = snippets as Snippet[];
   const isLoading = snippetsResult.type !== "complete";
 
   // Create FlexSearch index
@@ -91,11 +92,11 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
   const addNewSnippet = () => {
     // Generate a unique ID using nanoid
     const snippetId = nanoid();
-    zero.mutate.createSnippet({
+    zero.mutate.snippets.insert({
       id: snippetId,
       body: "",
       tags: [],
-    }).client.then(() => {
+    }).then(() => {
       toast({ title: "Snippet created successfully" });
     }).catch(() => {
       toast({ title: "Failed to create snippet", variant: "destructive" });
@@ -103,7 +104,7 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
   };
 
   const updateSnippet = (updatedSnippet: Snippet) => {
-    zero.mutate.updateSnippet({
+    zero.mutate.snippets.update({
       id: updatedSnippet.id,
       body: updatedSnippet.body,
       tags: updatedSnippet.tags,
@@ -114,8 +115,8 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
     });
   };
 
-  const deleteSnippet = (id: number) => {
-    zero.mutate.deleteSnippet({ id }).client.then(() => {
+  const deleteSnippet = (id: string) => {
+    zero.mutate.snippets.delete({ id }).then(() => {
       toast({ title: "Snippet deleted successfully" });
     }).catch(() => {
       toast({ title: "Failed to delete snippet", variant: "destructive" });
@@ -124,20 +125,20 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
 
   const copySnippet = (snippet: Snippet) => {
     navigator.clipboard.writeText(snippet.body);
-    zero.mutate.updateSnippetUsage({ id: snippet.id });
+    zero.mutate.snippets.update({ id: snippet.id, used_at: new Date() });
     toast({ title: "Snippet copied to clipboard" });
   };
 
   const renameTag = (oldTag: string, newTag: string) => {
     // Update all snippets that contain the old tag
-    snippets.forEach(snippet => {
+    typedSnippets.forEach(snippet => {
       if (snippet.tags.includes(oldTag)) {
-        const updatedTags = snippet.tags.map(tag => (tag === oldTag ? newTag : tag));
-        zero.mutate.updateSnippet({
+        const updatedTags = snippet.tags.map((tag: string) => (tag === oldTag ? newTag : tag));
+        zero.mutate.snippets.update({
           id: snippet.id,
           body: snippet.body,
           tags: updatedTags,
-        }).client;
+        });
       }
     });
 
@@ -147,14 +148,14 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
 
   const deleteTag = (tagToDelete: string) => {
     // Update all snippets that contain the tag
-    snippets.forEach(snippet => {
+    typedSnippets.forEach(snippet => {
       if (snippet.tags.includes(tagToDelete)) {
-        const updatedTags = snippet.tags.filter(tag => tag !== tagToDelete);
-        zero.mutate.updateSnippet({
+        const updatedTags = snippet.tags.filter((tag: string) => tag !== tagToDelete);
+        zero.mutate.snippets.update({
           id: snippet.id,
           body: snippet.body,
           tags: updatedTags,
-        }).client;
+        });
       }
     });
 

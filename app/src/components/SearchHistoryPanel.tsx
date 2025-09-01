@@ -34,21 +34,26 @@ const SearchHistoryPanel: React.FC<SearchHistoryPanelProps> = ({ onRestoreSearch
   const historyQuery = zero.query.searchHistory.orderBy("score", "desc");
   const [history = []] = useQuery(historyQuery);
 
-  const handleDeleteEntry = (entryId: number, e: React.MouseEvent) => {
+  const handleDeleteEntry = (entryId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    zero.mutate.deleteSearchHistory({ id: entryId }).then(() => {
+    zero.mutate.searchHistory.delete({ id: entryId }).then(() => {
       toast({ title: "Search history entry deleted" });
     }).catch(() => {
       toast({ title: "Failed to delete search history entry", variant: "destructive" });
     });
   };
 
-  const handleClearAll = () => {
-    zero.mutate.clearSearchHistory().then(() => {
+  const handleClearAll = async () => {
+    try {
+      // Delete all search history entries one by one
+      // This is not optimal but works with the basic mutators
+      for (const entry of history) {
+        await zero.mutate.searchHistory.delete({ id: entry.id });
+      }
       toast({ title: "Search history cleared" });
-    }).catch(() => {
+    } catch (error) {
       toast({ title: "Failed to clear search history", variant: "destructive" });
-    });
+    }
   };
 
   const handleRestoreSearch = (entry: SearchHistory) => {
@@ -102,7 +107,7 @@ const SearchHistoryPanel: React.FC<SearchHistoryPanelProps> = ({ onRestoreSearch
                     {state === "expanded" ? (
                       <Card
                         className="p-3 cursor-pointer hover:bg-accent transition-colors w-full"
-                        onClick={() => handleRestoreSearch(entry)}
+                        onClick={() => handleRestoreSearch(entry as SearchHistory)}
                       >
                         <div className="space-y-2">
                           <div className="flex items-start justify-between gap-2">
@@ -114,7 +119,7 @@ const SearchHistoryPanel: React.FC<SearchHistoryPanelProps> = ({ onRestoreSearch
                               )}
                               {entry.selected_tags.length > 0 && (
                                 <div className="flex flex-wrap gap-1 mt-1">
-                                  {entry.selected_tags.map((tag, index) => (
+                                  {entry.selected_tags.map((tag: string, index: number) => (
                                     <Badge key={index} variant="secondary" className="text-xs">
                                       {tag}
                                     </Badge>
@@ -143,7 +148,7 @@ const SearchHistoryPanel: React.FC<SearchHistoryPanelProps> = ({ onRestoreSearch
                       </Card>
                     ) : (
                       <SidebarMenuButton
-                        onClick={() => handleRestoreSearch(entry)}
+                        onClick={() => handleRestoreSearch(entry as SearchHistory)}
                         tooltip={{children: entry.query || entry.selected_tags.join(', ')}}
                       >
                         <Search />

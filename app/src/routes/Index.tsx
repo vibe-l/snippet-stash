@@ -5,6 +5,7 @@ import SearchHistoryPanel from "@/components/SearchHistoryPanel";
 import type { SearchHistory } from "@/lib/schema";
 import React, { useState } from "react";
 import { useZero } from "@rocicorp/zero/react";
+import { nanoid } from "nanoid";
 
 const Index = () => {
   const zero = useZero();
@@ -23,7 +24,8 @@ const Index = () => {
 
     // Add to history when restoring. The server-side mutator will handle
     // incrementing the score if the entry already exists.
-    zero.mutate.addSearchHistory({
+    zero.mutate.searchHistory.insert({
+      id: nanoid(),
       query: entry.query,
       selected_tags: entry.selected_tags,
       filter_mode: entry.filter_mode,
@@ -43,7 +45,8 @@ const Index = () => {
     const { searchText, selectedTags, filterMode } = searchState;
     // Add to history when search is submitted (if there's actual search content)
     if (searchText.trim() || selectedTags.length > 0) {
-      zero.mutate.addSearchHistory({
+      zero.mutate.searchHistory.insert({
+        id: nanoid(),
         query: searchText,
         selected_tags: selectedTags,
         filter_mode: filterMode,

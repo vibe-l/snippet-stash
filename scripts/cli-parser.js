@@ -1,4 +1,4 @@
-import { DEFAULT_CONFIG, TEXT_PROCESSING } from './config/constants.js';
+import { DEFAULT_CONFIG, TEXT_PROCESSING } from '../app/src/config/constants.js';
 
 export class CliParser {
   constructor() {

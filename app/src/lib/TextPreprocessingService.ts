@@ -1,5 +1,5 @@
-import { IRREGULAR_MAPPINGS, SUFFIXES } from '../../../scripts/config/lemmatization.js';
-import { DEFAULT_CONFIG, STOPWORDS, TEXT_PROCESSING } from '../../../scripts/config/constants.js';
+import { IRREGULAR_MAPPINGS, SUFFIXES } from '../config/lemmatization.ts';
+import { DEFAULT_CONFIG, STOPWORDS, TEXT_PROCESSING } from '../config/constants.ts';
 
 export interface WordPair {
   original: string;
