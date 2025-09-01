@@ -5,6 +5,17 @@ import path from 'path';
 
 class DocumentIDGenerator {
   constructor(minIdLength = 30, maxMeanWordCount = null, verbose = false, verboseDocuments = null) {
+    // Input validation
+    if (typeof minIdLength !== 'number' || minIdLength < 1) {
+      throw new Error('minIdLength must be a positive number');
+    }
+    if (maxMeanWordCount !== null && (typeof maxMeanWordCount !== 'number' || maxMeanWordCount < 0)) {
+      throw new Error('maxMeanWordCount must be null or a non-negative number');
+    }
+    if (typeof verbose !== 'boolean') {
+      throw new Error('verbose must be a boolean');
+    }
+    
     this.minIdLength = minIdLength;
     this.maxMeanWordCount = maxMeanWordCount;
     this.docWordCounts = new Map();
