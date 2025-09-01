@@ -249,6 +249,70 @@ export class DocumentIDGenerator {
     return updatedLength;
   }
 
+  private shouldSkipDuplicateWord(lemmatized: string, usedWords: Set<string>, original: string, wordIndex: number): boolean {
+    if (usedWords.has(lemmatized)) {
+      this.log(`Skipped duplicate word "${original}" (lemmatized: "${lemmatized}") at position ${wordIndex}`);
+      return true;
+    }
+    return false;
+  }
+
+  private addWordToSelection(
+    wordPair: WordPair, 
+    wordIndex: number, 
+    idWords: WordData[], 
+    usedWords: Set<string>
+  ): { wordData: WordData; newLength: number; newTotalCount: number } {
+    const { original, lemmatized } = wordPair;
+    const wordCount = this.docWordCounts.get(lemmatized) || 0;
+    
+    const wordData: WordData = { word: original, lemmatized, wordCount, position: wordIndex };
+    idWords.push(wordData);
+    usedWords.add(lemmatized);
+    
+    const newLength = this.calculateCurrentIdLength(idWords);
+    this.log(`Added "${original}" (lemmatized: "${lemmatized}", count: ${wordCount}, position: ${wordIndex}) to ID array`);
+    
+    return { wordData, newLength, newTotalCount: wordCount };
+  }
+
+  private logSelectionProgress(
+    currentLength: number, 
+    totalWordCount: number, 
+    idWordsLength: number, 
+    hasMinLength: boolean, 
+    meanBelowThreshold: boolean
+  ): void {
+    const meanWordCount = this.calculateMeanWordCount(totalWordCount, idWordsLength);
+    this.log(`Current length: ${currentLength}, Mean word count: ${meanWordCount.toFixed(2)} (threshold: ${this.maxMeanWordCount})`);
+    this.log(`Min length met: ${hasMinLength}, Mean below threshold: ${meanBelowThreshold}`);
+  }
+
+  private shouldStopSelection(currentLength: number, totalWordCount: number, idWordsLength: number): boolean {
+    const hasMinLength = currentLength >= this.minIdLength;
+    const meanWordCount = this.calculateMeanWordCount(totalWordCount, idWordsLength);
+    const meanBelowThreshold = this.isMeanBelowThreshold(meanWordCount);
+    
+    this.logSelectionProgress(currentLength, totalWordCount, idWordsLength, hasMinLength, meanBelowThreshold);
+    
+    if (hasMinLength && meanBelowThreshold) {
+      this.log('Both conditions met, stopping');
+      return true;
+    }
+    
+    return false;
+  }
+
+  private handleMeanThresholdExceeded(
+    idWords: WordData[], 
+    removedWords: WordData[], 
+    usedWords: Set<string>, 
+    totalWordCount: number
+  ): { newLength: number; newTotalCount: number } {
+    const { newLength, removedCount } = this.removeHighestCountWord(idWords, removedWords, usedWords);
+    return { newLength, newTotalCount: totalWordCount - removedCount };
+  }
+
   private selectWordsForId(wordPairs: WordPair[]): { idWords: WordData[]; removedWords: WordData[] } {
     const idWords: WordData[] = [];
     const removedWords: WordData[] = [];
@@ -260,39 +324,26 @@ export class DocumentIDGenerator {
     this.log('Starting word selection...');
     
     while (wordIndex < wordPairs.length) {
-      const { original, lemmatized } = wordPairs[wordIndex];
-      const wordCount = this.docWordCounts.get(lemmatized) || 0;
+      const wordPair = wordPairs[wordIndex];
       
-      if (usedWords.has(lemmatized)) {
-        this.log(`Skipped duplicate word "${original}" (lemmatized: "${lemmatized}") at position ${wordIndex}`);
+      if (this.shouldSkipDuplicateWord(wordPair.lemmatized, usedWords, wordPair.original, wordIndex)) {
         wordIndex++;
         continue;
       }
       
-      const wordData: WordData = { word: original, lemmatized, wordCount, position: wordIndex };
-      idWords.push(wordData);
-      usedWords.add(lemmatized);
-      currentLength = this.calculateCurrentIdLength(idWords);
-      totalWordCount += wordCount;
+      const addResult = this.addWordToSelection(wordPair, wordIndex, idWords, usedWords);
+      currentLength = addResult.newLength;
+      totalWordCount += addResult.newTotalCount;
       
-      this.log(`Added "${original}" (lemmatized: "${lemmatized}", count: ${wordCount}, position: ${wordIndex}) to ID array`);
-      
-      const hasMinLength = currentLength >= this.minIdLength;
-      const meanWordCount = this.calculateMeanWordCount(totalWordCount, idWords.length);
-      const meanBelowThreshold = this.isMeanBelowThreshold(meanWordCount);
-      
-      this.log(`Current length: ${currentLength}, Mean word count: ${meanWordCount.toFixed(2)} (threshold: ${this.maxMeanWordCount})`);
-      this.log(`Min length met: ${hasMinLength}, Mean below threshold: ${meanBelowThreshold}`);
-      
-      if (hasMinLength && meanBelowThreshold) {
-        this.log('Both conditions met, stopping');
+      if (this.shouldStopSelection(currentLength, totalWordCount, idWords.length)) {
         break;
       }
       
-      if (!meanBelowThreshold) {
-        const { newLength, removedCount } = this.removeHighestCountWord(idWords, removedWords, usedWords);
-        currentLength = newLength;
-        totalWordCount -= removedCount;
+      const meanWordCount = this.calculateMeanWordCount(totalWordCount, idWords.length);
+      if (!this.isMeanBelowThreshold(meanWordCount)) {
+        const handleResult = this.handleMeanThresholdExceeded(idWords, removedWords, usedWords, totalWordCount);
+        currentLength = handleResult.newLength;
+        totalWordCount = handleResult.newTotalCount;
       }
       
       wordIndex++;
