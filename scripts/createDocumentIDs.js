@@ -2,18 +2,20 @@
 
 import fs from 'fs';
 import path from 'path';
+import { IRREGULAR_MAPPINGS, SUFFIXES } from './config/lemmatization.js';
+import { DEFAULT_CONFIG, STOPWORDS, TEXT_PROCESSING, FILE_EXTENSIONS, CSV_HEADERS, CLI_MESSAGES, ERROR_MESSAGES } from './config/constants.js';
 
 class DocumentIDGenerator {
-  constructor(minIdLength = 30, maxMeanWordCount = null, verbose = false, verboseDocuments = new Set()) {
+  constructor(minIdLength = DEFAULT_CONFIG.MIN_ID_LENGTH, maxMeanWordCount = null, verbose = false, verboseDocuments = new Set()) {
     // Input validation
     if (typeof minIdLength !== 'number' || minIdLength < 1) {
-      throw new Error('minIdLength must be a positive number');
+      throw new Error(ERROR_MESSAGES.MIN_ID_LENGTH);
     }
     if (maxMeanWordCount !== null && (typeof maxMeanWordCount !== 'number' || maxMeanWordCount < 0)) {
-      throw new Error('maxMeanWordCount must be null or a non-negative number');
+      throw new Error(ERROR_MESSAGES.MAX_MEAN_WORD_COUNT);
     }
     if (typeof verbose !== 'boolean') {
-      throw new Error('verbose must be a boolean');
+      throw new Error(ERROR_MESSAGES.VERBOSE);
     }
     
     this.minIdLength = minIdLength;
@@ -48,109 +50,15 @@ class DocumentIDGenerator {
   }
 
   lemmatizeWord(word) {
-    // Irregular verb and noun mappings
-    const irregularMappings = {
-      // Irregular verbs (present/past/past participle forms)
-      'was': 'be', 'were': 'be', 'been': 'be', 'am': 'be', 'is': 'be', 'are': 'be',
-      'has': 'have', 'had': 'have', 'having': 'have',
-      'does': 'do', 'did': 'do', 'done': 'do', 'doing': 'do',
-      'goes': 'go', 'went': 'go', 'gone': 'go', 'going': 'go',
-      'gets': 'get', 'got': 'get', 'gotten': 'get', 'getting': 'get',
-      'makes': 'make', 'made': 'make', 'making': 'make',
-      'takes': 'take', 'took': 'take', 'taken': 'take', 'taking': 'take',
-      'comes': 'come', 'came': 'come', 'coming': 'come',
-      'gives': 'give', 'gave': 'give', 'given': 'give', 'giving': 'give',
-      'says': 'say', 'said': 'say', 'saying': 'say',
-      'sees': 'see', 'saw': 'see', 'seen': 'see', 'seeing': 'see',
-      'knows': 'know', 'knew': 'know', 'known': 'know', 'knowing': 'know',
-      'thinks': 'think', 'thought': 'think', 'thinking': 'think',
-      'finds': 'find', 'found': 'find', 'finding': 'find',
-      'tells': 'tell', 'told': 'tell', 'telling': 'tell',
-      'becomes': 'become', 'became': 'become', 'becoming': 'become',
-      'leaves': 'leave', 'left': 'leave', 'leaving': 'leave',
-      'feels': 'feel', 'felt': 'feel', 'feeling': 'feel',
-      'brings': 'bring', 'brought': 'bring', 'bringing': 'bring',
-      'begins': 'begin', 'began': 'begin', 'begun': 'begin', 'beginning': 'begin',
-      'keeps': 'keep', 'kept': 'keep', 'keeping': 'keep',
-      'holds': 'hold', 'held': 'hold', 'holding': 'hold',
-      'writes': 'write', 'wrote': 'write', 'written': 'write', 'writing': 'write',
-      'stands': 'stand', 'stood': 'stand', 'standing': 'stand',
-      'hears': 'hear', 'heard': 'hear', 'hearing': 'hear',
-      'lets': 'let', 'letting': 'let',
-      'means': 'mean', 'meant': 'mean', 'meaning': 'mean',
-      'sets': 'set', 'setting': 'set',
-      'meets': 'meet', 'met': 'meet', 'meeting': 'meet',
-      'runs': 'run', 'ran': 'run', 'running': 'run',
-      'moves': 'move', 'moved': 'move', 'moving': 'move',
-      'lives': 'live', 'lived': 'live', 'living': 'live',
-      'believes': 'believe', 'believed': 'believe', 'believing': 'believe',
-      'builds': 'build', 'built': 'build', 'building': 'build',
-      'buys': 'buy', 'bought': 'buy', 'buying': 'buy',
-      'catches': 'catch', 'caught': 'catch', 'catching': 'catch',
-      'chooses': 'choose', 'chose': 'choose', 'chosen': 'choose', 'choosing': 'choose',
-      'cuts': 'cut', 'cutting': 'cut',
-      'draws': 'draw', 'drew': 'draw', 'drawn': 'draw', 'drawing': 'draw',
-      'drinks': 'drink', 'drank': 'drink', 'drunk': 'drink', 'drinking': 'drink',
-      'drives': 'drive', 'drove': 'drive', 'driven': 'drive', 'driving': 'drive',
-      'eats': 'eat', 'ate': 'eat', 'eaten': 'eat', 'eating': 'eat',
-      'falls': 'fall', 'fell': 'fall', 'fallen': 'fall', 'falling': 'fall',
-      'fights': 'fight', 'fought': 'fight', 'fighting': 'fight',
-      'flies': 'fly', 'flew': 'fly', 'flown': 'fly', 'flying': 'fly',
-      'forgets': 'forget', 'forgot': 'forget', 'forgotten': 'forget', 'forgetting': 'forget',
-      'grows': 'grow', 'grew': 'grow', 'grown': 'grow', 'growing': 'grow',
-      'hangs': 'hang', 'hung': 'hang', 'hanging': 'hang',
-      'hits': 'hit', 'hitting': 'hit',
-      'hurts': 'hurt', 'hurting': 'hurt',
-      'lays': 'lay', 'laid': 'lay', 'laying': 'lay',
-      'leads': 'lead', 'led': 'lead', 'leading': 'lead',
-      'learns': 'learn', 'learned': 'learn', 'learnt': 'learn', 'learning': 'learn',
-      'lies': 'lie', 'lay': 'lie', 'lain': 'lie', 'lying': 'lie',
-      'loses': 'lose', 'lost': 'lose', 'losing': 'lose',
-      'pays': 'pay', 'paid': 'pay', 'paying': 'pay',
-      'puts': 'put', 'putting': 'put',
-      'reads': 'read', 'reading': 'read',
-      'rides': 'ride', 'rode': 'ride', 'ridden': 'ride', 'riding': 'ride',
-      'rings': 'ring', 'rang': 'ring', 'rung': 'ring', 'ringing': 'ring',
-      'rises': 'rise', 'rose': 'rise', 'risen': 'rise', 'rising': 'rise',
-      'sells': 'sell', 'sold': 'sell', 'selling': 'sell',
-      'sends': 'send', 'sent': 'send', 'sending': 'send',
-      'shuts': 'shut', 'shutting': 'shut',
-      'sings': 'sing', 'sang': 'sing', 'sung': 'sing', 'singing': 'sing',
-      'sits': 'sit', 'sat': 'sit', 'sitting': 'sit',
-      'sleeps': 'sleep', 'slept': 'sleep', 'sleeping': 'sleep',
-      'speaks': 'speak', 'spoke': 'speak', 'spoken': 'speak', 'speaking': 'speak',
-      'spends': 'spend', 'spent': 'spend', 'spending': 'spend',
-      'swims': 'swim', 'swam': 'swim', 'swum': 'swim', 'swimming': 'swim',
-      'teaches': 'teach', 'taught': 'teach', 'teaching': 'teach',
-      'throws': 'throw', 'threw': 'throw', 'thrown': 'throw', 'throwing': 'throw',
-      'understands': 'understand', 'understood': 'understand', 'understanding': 'understand',
-      'wakes': 'wake', 'woke': 'wake', 'woken': 'wake', 'waking': 'wake',
-      'wears': 'wear', 'wore': 'wear', 'worn': 'wear', 'wearing': 'wear',
-      'wins': 'win', 'won': 'win', 'winning': 'win',
-      
-      // Irregular plurals and comparative forms
-      'children': 'child', 'people': 'person', 'men': 'man', 'women': 'woman',
-      'teeth': 'tooth', 'feet': 'foot', 'geese': 'goose', 'mice': 'mouse',
-      'better': 'good', 'best': 'good', 'worse': 'bad', 'worst': 'bad',
-      'more': 'much', 'most': 'much', 'less': 'little', 'least': 'little',
-      'further': 'far', 'furthest': 'far', 'farther': 'far', 'farthest': 'far'
-    };
-    
     // Check irregular mappings first
-    if (irregularMappings[word] && this.vocabulary.has(irregularMappings[word])) {
-      this.log(`  Irregular lemmatized "${word}" → "${irregularMappings[word]}"`);
-      return irregularMappings[word];
+    if (IRREGULAR_MAPPINGS[word] && this.vocabulary.has(IRREGULAR_MAPPINGS[word])) {
+      this.log(`  Irregular lemmatized "${word}" → "${IRREGULAR_MAPPINGS[word]}"`);
+      return IRREGULAR_MAPPINGS[word];
     }
     
-    // Common English suffixes to try removing
-    const suffixes = [
-      'ing', 'ed', 'es', 's', 'er', 'est', 'ly', 'tion', 'sion', 'ment', 
-      'ness', 'ity', 'able', 'ible', 'ful', 'less', 'ish', 'ous', 'ive'
-    ];
-    
     // Try removing each suffix and check if resulting lemma exists in vocabulary
-    for (const suffix of suffixes) {
-      if (word.endsWith(suffix) && word.length > suffix.length + 2) { // Ensure lemma would be at least 3 chars
+    for (const suffix of SUFFIXES) {
+      if (word.endsWith(suffix) && word.length > suffix.length + DEFAULT_CONFIG.MIN_LEMMA_LENGTH - 1) {
         const lemma = word.slice(0, -suffix.length);
         if (this.vocabulary.has(lemma)) {
           this.log(`  Suffix lemmatized "${word}" → "${lemma}"`);
@@ -173,12 +81,11 @@ class DocumentIDGenerator {
 
   preprocessText(text, returnOriginals = false) {
     this.log(`\n=== PREPROCESSING TEXT: "${text}" ===`);
-    const stopwords = new Set(['will', 'was', 'were', 'been', 'are', 'is', 'be', 'am']);
     
     // Split text into words while preserving original case
     const originalWords = text
-      .replace(/[^\w\s\u00C0-\u024F\u1E00-\u1EFF]/g, ' ')
-      .replace(/\s+/g, ' ')
+      .replace(TEXT_PROCESSING.WORD_REGEX, ' ')
+      .replace(TEXT_PROCESSING.WHITESPACE_REGEX, ' ')
       .trim()
       .split(' ');
     
@@ -189,7 +96,7 @@ class DocumentIDGenerator {
     for (const originalWord of originalWords) {
       const lowerWord = originalWord.toLowerCase();
       
-      if (lowerWord.length >= 2 && !/\d/.test(lowerWord) && !stopwords.has(lowerWord) && !this.shouldSkip2LetterWord(originalWord)) {
+      if (lowerWord.length >= DEFAULT_CONFIG.MIN_WORD_LENGTH && !TEXT_PROCESSING.NUMBER_REGEX.test(lowerWord) && !STOPWORDS.has(lowerWord) && !this.shouldSkip2LetterWord(originalWord)) {
         validWords.push(lowerWord);
         validOriginalWords.push(originalWord);
       }
@@ -218,21 +125,20 @@ class DocumentIDGenerator {
     this.log('\n=== BUILDING WORD COUNTS ===');
     
     // Single pass: build vocabulary and word counts together
-    const stopwords = new Set(['was', 'were', 'been', 'are', 'is', 'be', 'am']);
     const wordCounts = new Map();
     
     // First build vocabulary from raw words
     for (const doc of documents) {
       const originalWords = doc
-        .replace(/[^\w\s\u00C0-\u024F\u1E00-\u1EFF]/g, ' ')
-        .replace(/\s+/g, ' ')
+        .replace(TEXT_PROCESSING.WORD_REGEX, ' ')
+        .replace(TEXT_PROCESSING.WHITESPACE_REGEX, ' ')
         .trim()
         .split(' ');
       
       for (const originalWord of originalWords) {
         const lowerWord = originalWord.toLowerCase();
         
-        if (lowerWord.length >= 2 && !/\d/.test(lowerWord) && !stopwords.has(lowerWord) && !this.shouldSkip2LetterWord(originalWord)) {
+        if (lowerWord.length >= DEFAULT_CONFIG.MIN_WORD_LENGTH && !TEXT_PROCESSING.NUMBER_REGEX.test(lowerWord) && !STOPWORDS.has(lowerWord) && !this.shouldSkip2LetterWord(originalWord)) {
           this.vocabulary.add(lowerWord);
         }
       }
@@ -256,17 +162,17 @@ class DocumentIDGenerator {
   loadDocWordCounts(filePath) {
     try {
       if (!fs.existsSync(filePath)) {
-        throw new Error(`File does not exist: ${filePath}`);
+        throw new Error(`${ERROR_MESSAGES.FILE_NOT_EXIST}: ${filePath}`);
       }
       
       const content = fs.readFileSync(filePath, 'utf8');
       if (!content.trim()) {
-        throw new Error('File is empty');
+        throw new Error(ERROR_MESSAGES.FILE_EMPTY);
       }
       
       const lines = content.split('\n');
       if (lines.length < 2) {
-        throw new Error('File must have at least a header and one data line');
+        throw new Error(ERROR_MESSAGES.FILE_HEADER);
       }
       
       const dataLines = lines.slice(1); // Skip header
@@ -439,17 +345,17 @@ class DocumentIDGenerator {
   cacheDocWordCounts(filePath) {
     try {
       if (typeof filePath !== 'string' || !filePath.trim()) {
-        throw new Error('filePath must be a non-empty string');
+        throw new Error(ERROR_MESSAGES.FILE_PATH_STRING);
       }
       
       if (this.docWordCounts.size === 0) {
-        throw new Error('No word counts to cache');
+        throw new Error(ERROR_MESSAGES.NO_WORD_COUNTS);
       }
       
       // Build CSV content directly without intermediate array for large datasets
-      let csvContent = 'word,count\n';
+      let csvContent = CSV_HEADERS.WORD_COUNT + '\n';
       
-      if (this.docWordCounts.size < 10000) {
+      if (this.docWordCounts.size < DEFAULT_CONFIG.LARGE_DATASET_THRESHOLD) {
         // For smaller datasets, sort normally
         const sortedCounts = Array.from(this.docWordCounts.entries())
           .sort((a, b) => b[1] - a[1]);
@@ -477,16 +383,16 @@ class DocumentIDGenerator {
   generateIds(documents, docWordCountPath = null) {
     // Input validation
     if (!Array.isArray(documents)) {
-      throw new Error('documents must be an array');
+      throw new Error(ERROR_MESSAGES.DOCUMENTS_ARRAY);
     }
     if (documents.length === 0) {
-      throw new Error('documents array cannot be empty');
+      throw new Error(ERROR_MESSAGES.DOCUMENTS_EMPTY);
     }
     if (!documents.every(doc => typeof doc === 'string')) {
-      throw new Error('all documents must be strings');
+      throw new Error(ERROR_MESSAGES.DOCUMENTS_STRINGS);
     }
     if (docWordCountPath !== null && typeof docWordCountPath !== 'string') {
-      throw new Error('docWordCountPath must be null or a string');
+      throw new Error(ERROR_MESSAGES.DOC_WORD_COUNT_PATH);
     }
     
     // Load existing data from cache files if available
@@ -540,19 +446,16 @@ function main() {
   const args = process.argv.slice(2);
   
   if (args.length === 0) {
-    console.error('Usage: node createDocumentIDs.js <json_file_path> [minIdLength] [maxMeanWordCount] [--verbose|-v [doc_numbers]]');
-    console.error('Example: node createDocumentIDs.js documents.json 30 5 --verbose');
-    console.error('Example: node createDocumentIDs.js documents.json 30 5 -v 241');
-    console.error('Example: node createDocumentIDs.js documents.json 30 5 -v 0,2,5');
+    console.error(CLI_MESSAGES.USAGE);
+    CLI_MESSAGES.EXAMPLES.forEach(example => console.error(example));
     console.error('Options:');
-    console.error('  --verbose, -v [doc_numbers]    Enable verbose debug output');
-    console.error('                                 Optionally specify comma-separated document indices (0-based)');
+    CLI_MESSAGES.OPTIONS.forEach(option => console.error(option));
     process.exit(1);
   }
   
   // Parse arguments
   let jsonFilePath = args[0];
-  let minIdLength = 30;
+  let minIdLength = DEFAULT_CONFIG.MIN_ID_LENGTH;
   let maxMeanWordCount = null; // Will be set to corpus mean if not provided
   let verbose = false;
   let verboseDocuments = null;
@@ -566,7 +469,7 @@ function main() {
       if (i + 1 < args.length && !args[i + 1].startsWith('-')) {
         const nextArg = args[i + 1];
         // Check if it's a number or comma-separated numbers
-        if (/^[\d,\s]+$/.test(nextArg)) {
+        if (TEXT_PROCESSING.DOC_NUMBER_REGEX.test(nextArg)) {
           const docNumbers = nextArg.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n));
           if (docNumbers.length > 0) {
             verboseDocuments = new Set(docNumbers);
@@ -591,16 +494,16 @@ function main() {
     const documents = JSON.parse(jsonContent);
     
     if (!Array.isArray(documents)) {
-      console.error('Error: JSON file must contain an array of strings');
+      console.error(`Error: ${ERROR_MESSAGES.JSON_ARRAY}`);
       process.exit(1);
     }
     
     if (!documents.every(doc => typeof doc === 'string')) {
-      console.error('Error: All elements in the array must be strings');
+      console.error(`Error: ${ERROR_MESSAGES.ARRAY_STRINGS}`);
       process.exit(1);
     }
     
-    const docWordCountPath = jsonFilePath.replace(/\.json$/i, '_doc_word_count.csv');
+    const docWordCountPath = jsonFilePath.replace(new RegExp(`\${FILE_EXTENSIONS.JSON}$`, 'i'), '_doc_word_count' + FILE_EXTENSIONS.CSV);
     
     const generator = new DocumentIDGenerator(minIdLength, maxMeanWordCount, verbose, verboseDocuments);
     const ids = generator.generateIds(documents, docWordCountPath);
@@ -613,7 +516,7 @@ function main() {
       document: doc
     }));
     
-    const outputPath = jsonFilePath.replace(/\.json$/i, '_IDs.json');
+    const outputPath = jsonFilePath.replace(new RegExp(`\${FILE_EXTENSIONS.JSON}$`, 'i'), '_IDs' + FILE_EXTENSIONS.JSON);
     fs.writeFileSync(outputPath, JSON.stringify(results, null, 2));
     console.log(`Generated IDs written to: ${outputPath}`);
     console.log(`Document word counts cached to: ${docWordCountPath}`);
