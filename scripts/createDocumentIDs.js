@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 
 class DocumentIDGenerator {
-  constructor(minIdLength = 30, maxMeanWordCount = null, verbose = false, verboseDocuments = null) {
+  constructor(minIdLength = 30, maxMeanWordCount = null, verbose = false, verboseDocuments = new Set()) {
     // Input validation
     if (typeof minIdLength !== 'number' || minIdLength < 1) {
       throw new Error('minIdLength must be a positive number');
@@ -256,23 +256,50 @@ class DocumentIDGenerator {
 
   loadDocWordCounts(filePath) {
     try {
-      if (fs.existsSync(filePath)) {
-        const content = fs.readFileSync(filePath, 'utf8');
-        const lines = content.split('\n').slice(1); // Skip header
-        
-        for (const line of lines) {
-          if (line.trim()) {
-            const [word, count] = line.split(',');
-            const countNum = parseInt(count);
-            this.docWordCounts.set(word, countNum);
-            // Also add to vocabulary for lemmatization
-            this.vocabulary.add(word);
-          }
-        }
-        this.log(`Loaded ${this.docWordCounts.size} word counts and built vocabulary from cache`);
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`File does not exist: ${filePath}`);
       }
+      
+      const content = fs.readFileSync(filePath, 'utf8');
+      if (!content.trim()) {
+        throw new Error('File is empty');
+      }
+      
+      const lines = content.split('\n');
+      if (lines.length < 2) {
+        throw new Error('File must have at least a header and one data line');
+      }
+      
+      const dataLines = lines.slice(1); // Skip header
+      let loadedCount = 0;
+      
+      for (let i = 0; i < dataLines.length; i++) {
+        const line = dataLines[i].trim();
+        if (line) {
+          const parts = line.split(',');
+          if (parts.length !== 2) {
+            console.warn(`Warning: Skipping malformed line ${i + 2}: "${line}"`);
+            continue;
+          }
+          
+          const [word, countStr] = parts;
+          const countNum = parseInt(countStr, 10);
+          
+          if (isNaN(countNum) || countNum < 0) {
+            console.warn(`Warning: Skipping line ${i + 2} with invalid count: "${countStr}"`);
+            continue;
+          }
+          
+          this.docWordCounts.set(word, countNum);
+          this.vocabulary.add(word);
+          loadedCount++;
+        }
+      }
+      
+      this.log(`Loaded ${loadedCount} word counts and built vocabulary from cache`);
+      
     } catch (error) {
-      console.error(`Warning: Could not load doc word counts from ${filePath}: ${error.message}`);
+      throw new Error(`Failed to load doc word counts from ${filePath}: ${error.message}`);
     }
   }
 
@@ -408,24 +435,66 @@ class DocumentIDGenerator {
 
   cacheDocWordCounts(filePath) {
     try {
-      const sortedCounts = Array.from(this.docWordCounts.entries())
-        .sort((a, b) => b[1] - a[1]);
+      if (typeof filePath !== 'string' || !filePath.trim()) {
+        throw new Error('filePath must be a non-empty string');
+      }
       
-      const csvContent = 'word,count\n' + 
-        sortedCounts.map(([word, count]) => `${word},${count}`).join('\n');
+      if (this.docWordCounts.size === 0) {
+        throw new Error('No word counts to cache');
+      }
+      
+      // Build CSV content directly without intermediate array for large datasets
+      let csvContent = 'word,count\n';
+      
+      if (this.docWordCounts.size < 10000) {
+        // For smaller datasets, sort normally
+        const sortedCounts = Array.from(this.docWordCounts.entries())
+          .sort((a, b) => b[1] - a[1]);
+        csvContent += sortedCounts.map(([word, count]) => `${word},${count}`).join('\n');
+      } else {
+        // For larger datasets, write unsorted to avoid memory pressure
+        for (const [word, count] of this.docWordCounts.entries()) {
+          csvContent += `${word},${count}\n`;
+        }
+      }
+      
+      // Ensure directory exists
+      const dir = path.dirname(filePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
       
       fs.writeFileSync(filePath, csvContent, 'utf8');
     } catch (error) {
-      console.error(`Warning: Could not cache doc word counts to ${filePath}: ${error.message}`);
+      throw new Error(`Failed to cache doc word counts to ${filePath}: ${error.message}`);
     }
   }
 
 
   generateIds(documents, docWordCountPath = null) {
+    // Input validation
+    if (!Array.isArray(documents)) {
+      throw new Error('documents must be an array');
+    }
+    if (documents.length === 0) {
+      throw new Error('documents array cannot be empty');
+    }
+    if (!documents.every(doc => typeof doc === 'string')) {
+      throw new Error('all documents must be strings');
+    }
+    if (docWordCountPath !== null && typeof docWordCountPath !== 'string') {
+      throw new Error('docWordCountPath must be null or a string');
+    }
+    
     // Load existing data from cache files if available
-    if (docWordCountPath && fs.existsSync(docWordCountPath)) {
-      this.loadDocWordCounts(docWordCountPath);
-    } else {
+    try {
+      if (docWordCountPath && fs.existsSync(docWordCountPath)) {
+        this.loadDocWordCounts(docWordCountPath);
+      } else {
+        this.buildDocWordCounts(documents);
+      }
+    } catch (error) {
+      console.warn(`Warning: ${error.message}. Falling back to building word counts from documents.`);
       this.buildDocWordCounts(documents);
     }
     
