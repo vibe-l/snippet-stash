@@ -3,8 +3,28 @@ import path from 'path';
 import { IRREGULAR_MAPPINGS, SUFFIXES } from '../../../scripts/config/lemmatization.js';
 import { DEFAULT_CONFIG, STOPWORDS, TEXT_PROCESSING, FILE_EXTENSIONS, CSV_HEADERS, ERROR_MESSAGES } from '../../../scripts/config/constants.js';
 
+interface WordPair {
+  original: string;
+  lemmatized: string;
+}
+
+interface WordData {
+  word: string;
+  lemmatized: string;
+  wordCount: number;
+  position: number;
+}
+
 export class DocumentIDGenerator {
-  constructor(minIdLength = DEFAULT_CONFIG.MIN_ID_LENGTH, maxMeanWordCount = null, verbose = false, verboseDocuments = new Set()) {
+  private minIdLength: number;
+  private maxMeanWordCount: number | null;
+  private docWordCounts: Map<string, number>;
+  private vocabulary: Set<string>;
+  private verbose: boolean;
+  private verboseDocuments: Set<number>;
+  private currentDocumentIndex: number | null;
+
+  constructor(minIdLength: number = DEFAULT_CONFIG.MIN_ID_LENGTH, maxMeanWordCount: number | null = null, verbose: boolean = false, verboseDocuments: Set<number> | number[] = new Set()) {
     // Input validation
     if (typeof minIdLength !== 'number' || minIdLength < 1) {
       throw new Error(ERROR_MESSAGES.MIN_ID_LENGTH);
@@ -25,7 +45,7 @@ export class DocumentIDGenerator {
     this.currentDocumentIndex = null; // Track which document we're currently processing
   }
 
-  log(...args) {
+  private log(...args: any[]): void {
     if (this.verbose) {
       // If verboseDocuments has entries, only log for those document indices
       if (this.verboseDocuments.size > 0 && this.currentDocumentIndex !== null) {
@@ -39,15 +59,15 @@ export class DocumentIDGenerator {
     }
   }
 
-  is2LetterAcronym(originalWord) {
+  private is2LetterAcronym(originalWord: string): boolean {
     return originalWord.length === 2 && originalWord === originalWord.toUpperCase();
   }
 
-  shouldSkip2LetterWord(originalWord) {
+  private shouldSkip2LetterWord(originalWord: string): boolean {
     return originalWord.length === 2 && !this.is2LetterAcronym(originalWord);
   }
 
-  lemmatizeWord(word) {
+  private lemmatizeWord(word: string): string {
     // Check irregular mappings first
     if (IRREGULAR_MAPPINGS[word] && this.vocabulary.has(IRREGULAR_MAPPINGS[word])) {
       this.log(`  Irregular lemmatized "${word}" → "${IRREGULAR_MAPPINGS[word]}"`);
@@ -77,7 +97,9 @@ export class DocumentIDGenerator {
     return word; // Return original if no valid lemma found
   }
 
-  preprocessText(text, returnOriginals = false) {
+  private preprocessText(text: string): string[];
+  private preprocessText(text: string, returnOriginals: true): WordPair[];
+  private preprocessText(text: string, returnOriginals: boolean = false): string[] | WordPair[] {
     this.log(`\n=== PREPROCESSING TEXT: "${text}" ===`);
     
     // Split text into words while preserving original case
@@ -88,8 +110,8 @@ export class DocumentIDGenerator {
       .split(' ');
     
     // Filter and process words
-    const validWords = [];
-    const validOriginalWords = [];
+    const validWords: string[] = [];
+    const validOriginalWords: string[] = [];
     
     for (const originalWord of originalWords) {
       const lowerWord = originalWord.toLowerCase();
@@ -102,7 +124,7 @@ export class DocumentIDGenerator {
     
     if (returnOriginals) {
       // Return array of objects with original case and lemmatized versions
-      const wordPairs = validWords.map((word, index) => ({
+      const wordPairs: WordPair[] = validWords.map((word, index) => ({
         original: validOriginalWords[index], // Keep original case
         lemmatized: this.vocabulary.size > 0 ? this.lemmatizeWord(word) : word
       }));
@@ -119,11 +141,11 @@ export class DocumentIDGenerator {
     }
   }
 
-  buildDocWordCounts(documents) {
+  private buildDocWordCounts(documents: string[]): void {
     this.log('\n=== BUILDING WORD COUNTS ===');
     
     // Single pass: build vocabulary and word counts together
-    const wordCounts = new Map();
+    const wordCounts = new Map<string, number>();
     
     // First build vocabulary from raw words
     for (const doc of documents) {
@@ -157,7 +179,7 @@ export class DocumentIDGenerator {
     this.log('Word counts built:', Array.from(this.docWordCounts.entries()));
   }
 
-  loadDocWordCounts(filePath) {
+  private loadDocWordCounts(filePath: string): void {
     try {
       if (!fs.existsSync(filePath)) {
         throw new Error(`${ERROR_MESSAGES.FILE_NOT_EXIST}: ${filePath}`);
@@ -202,11 +224,11 @@ export class DocumentIDGenerator {
       this.log(`Loaded ${loadedCount} word counts and built vocabulary from cache`);
       
     } catch (error) {
-      throw new Error(`Failed to load doc word counts from ${filePath}: ${error.message}`);
+      throw new Error(`Failed to load doc word counts from ${filePath}: ${(error as Error).message}`);
     }
   }
 
-  generateId(document, documentIndex) {
+  private generateId(document: string, documentIndex: number): string {
     this.currentDocumentIndex = documentIndex;
     this.log(`\n=== GENERATING ID FOR DOCUMENT ${documentIndex} ===`);
     this.log(`Document: "${document}"`);
@@ -216,9 +238,9 @@ export class DocumentIDGenerator {
       return `document_${documentIndex}`;
     }
     
-    const idWords = [];
-    const removedWords = [];
-    const usedWords = new Set(); // Track words already added to prevent duplicates (using lemmatized form)
+    const idWords: WordData[] = [];
+    const removedWords: WordData[] = [];
+    const usedWords = new Set<string>(); // Track words already added to prevent duplicates (using lemmatized form)
     let wordIndex = 0;
     let currentLength = 0; // Track length without string concatenation
     let totalWordCount = 0; // Track total count without reduce
@@ -237,7 +259,7 @@ export class DocumentIDGenerator {
       }
       
       // Add the word to our ID array with position information (store original for ID, lemmatized for count)
-      const wordData = { word: original, lemmatized, wordCount, position: wordIndex };
+      const wordData: WordData = { word: original, lemmatized, wordCount, position: wordIndex };
       idWords.push(wordData);
       usedWords.add(lemmatized);
       // Calculate current ID length properly: word length + underscore (except for first word)
@@ -251,7 +273,7 @@ export class DocumentIDGenerator {
       
       // Calculate mean word count
       const meanWordCount = totalWordCount / idWords.length;
-      const meanBelowThreshold = meanWordCount <= this.maxMeanWordCount;
+      const meanBelowThreshold = meanWordCount <= (this.maxMeanWordCount || Infinity);
       
       this.log(`Current length: ${currentLength}, Mean word count: ${meanWordCount.toFixed(2)} (threshold: ${this.maxMeanWordCount})`);
       this.log(`Min length met: ${hasMinLength}, Mean below threshold: ${meanBelowThreshold}`);
@@ -338,7 +360,7 @@ export class DocumentIDGenerator {
     return finalId;
   }
 
-  cacheDocWordCounts(filePath) {
+  cacheDocWordCounts(filePath: string): void {
     try {
       if (typeof filePath !== 'string' || !filePath.trim()) {
         throw new Error(ERROR_MESSAGES.FILE_PATH_STRING);
@@ -371,11 +393,11 @@ export class DocumentIDGenerator {
       
       fs.writeFileSync(filePath, csvContent, 'utf8');
     } catch (error) {
-      throw new Error(`Failed to cache doc word counts to ${filePath}: ${error.message}`);
+      throw new Error(`Failed to cache doc word counts to ${filePath}: ${(error as Error).message}`);
     }
   }
 
-  generateIds(documents, docWordCountPath = null) {
+  generateIds(documents: string[], docWordCountPath: string | null = null): string[] {
     // Input validation
     if (!Array.isArray(documents)) {
       throw new Error(ERROR_MESSAGES.DOCUMENTS_ARRAY);
@@ -398,7 +420,7 @@ export class DocumentIDGenerator {
         this.buildDocWordCounts(documents);
       }
     } catch (error) {
-      console.warn(`Warning: ${error.message}. Falling back to building word counts from documents.`);
+      console.warn(`Warning: ${(error as Error).message}. Falling back to building word counts from documents.`);
       this.buildDocWordCounts(documents);
     }
     
@@ -415,8 +437,8 @@ export class DocumentIDGenerator {
       }
     }
     
-    const ids = [];
-    const usedIds = new Set();
+    const ids: string[] = [];
+    const usedIds = new Set<string>();
     
     for (let i = 0; i < documents.length; i++) {
       let id = this.generateId(documents[i], i);
