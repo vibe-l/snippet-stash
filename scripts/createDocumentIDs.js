@@ -21,18 +21,18 @@ class DocumentIDGenerator {
     this.docWordCounts = new Map();
     this.vocabulary = new Set(); // Set of all unique words from corpus
     this.verbose = verbose;
-    this.verboseDocuments = verboseDocuments; // Set of document indices to debug
+    this.verboseDocuments = verboseDocuments instanceof Set ? verboseDocuments : new Set(verboseDocuments || []); // Always ensure it's a Set
     this.currentDocumentIndex = null; // Track which document we're currently processing
   }
 
   log(...args) {
     if (this.verbose) {
-      // If verboseDocuments is specified, only log for those document indices
-      if (this.verboseDocuments && this.currentDocumentIndex !== null) {
+      // If verboseDocuments has entries, only log for those document indices
+      if (this.verboseDocuments.size > 0 && this.currentDocumentIndex !== null) {
         if (this.verboseDocuments.has(this.currentDocumentIndex)) {
           console.log(...args);
         }
-      } else if (!this.verboseDocuments) {
+      } else if (this.verboseDocuments.size === 0) {
         // If no specific documents specified, log everything (original behavior)
         console.log(...args);
       }
