@@ -62,6 +62,13 @@ export class DocumentIDGenerator {
 
   private generateId(document: string, documentIndex: number): string {
     this.currentDocumentIndex = documentIndex;
+    
+    // Early termination for empty or whitespace-only documents
+    if (!document || document.trim().length === 0) {
+      this.log(`Document ${documentIndex} is empty, using fallback ID`);
+      return `document_${documentIndex}`;
+    }
+    
     this.log(`\n=== GENERATING ID FOR DOCUMENT ${documentIndex} ===`);
     this.log(`Document: "${document}"`);
     
@@ -123,13 +130,31 @@ export class DocumentIDGenerator {
       }
     }
     
-    // Update strategy with the potentially new maxMeanWordCount
-    this.wordSelectionStrategy = new WordSelectionStrategy(this.minIdLength, this.maxMeanWordCount, this.wordCountManager, this.log.bind(this));
+    // Update strategy with the potentially new maxMeanWordCount only if it changed
+    const currentMaxMeanWordCount = this.wordSelectionStrategy ? (this.wordSelectionStrategy as any).maxMeanWordCount : null;
+    if (currentMaxMeanWordCount !== this.maxMeanWordCount) {
+      this.wordSelectionStrategy = new WordSelectionStrategy(this.minIdLength, this.maxMeanWordCount, this.wordCountManager, this.log.bind(this));
+    }
     
     const ids: string[] = [];
     const usedIds = new Set<string>();
     
     for (let i = 0; i < documents.length; i++) {
+      // Skip processing for obviously invalid documents early
+      if (typeof documents[i] !== 'string') {
+        this.log(`Document ${i} is not a string, using fallback ID`);
+        let id = `document_${i}`;
+        let counter = 1;
+        let originalId = id;
+        while (usedIds.has(id)) {
+          counter++;
+          id = `${originalId}_${counter}`;
+        }
+        usedIds.add(id);
+        ids.push(id);
+        continue;
+      }
+      
       let id = this.generateId(documents[i], i);
       
       // Ensure uniqueness among generated IDs
