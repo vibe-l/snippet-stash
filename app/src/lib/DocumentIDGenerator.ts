@@ -66,7 +66,7 @@ export class DocumentIDGenerator {
     // Early termination for empty or whitespace-only documents
     if (!document || document.trim().length === 0) {
       this.log(`Document ${documentIndex} is empty, using fallback ID`);
-      return `document_${documentIndex}`;
+      return 'empty';
     }
     
     this.log(`\n=== GENERATING ID FOR DOCUMENT ${documentIndex} ===`);
@@ -74,13 +74,13 @@ export class DocumentIDGenerator {
     
     const wordPairs = this.wordCountManager.getPreprocessingService().preprocessText(document, true);
     if (wordPairs.length === 0) {
-      return `document_${documentIndex}`;
+      return 'empty';
     }
     
     const { idWords } = this.wordSelectionStrategy.selectWordsForId(wordPairs);
     
     if (idWords.length === 0) {
-      return `document_${documentIndex}`;
+      return 'empty';
     }
     
     const finalId = idWords.map(w => w.word).join('_');
@@ -143,7 +143,7 @@ export class DocumentIDGenerator {
       // Skip processing for obviously invalid documents early
       if (typeof documents[i] !== 'string') {
         this.log(`Document ${i} is not a string, using fallback ID`);
-        let id = `document_${i}`;
+        let id = 'invalid';
         let counter = 1;
         let originalId = id;
         while (usedIds.has(id)) {

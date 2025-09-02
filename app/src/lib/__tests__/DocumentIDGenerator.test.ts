@@ -85,8 +85,8 @@ describe('DocumentIDGenerator', () => {
       const ids = generator.generateIds(documents);
       
       expect(ids).toHaveLength(2);
-      expect(ids[0]).toBe('document_0');
-      expect(ids[1]).not.toBe('document_1');
+      expect(ids[0]).toBe('empty');
+      expect(ids[1]).not.toBe('empty');
     });
 
     it('should respect minimum ID length', () => {
@@ -132,7 +132,7 @@ describe('DocumentIDGenerator', () => {
       
       const ids = generator.generateIds(documents);
       
-      expect(ids[0]).toBe('document_0');
+      expect(ids[0]).toBe('empty');
     });
 
     it('should throw error for invalid input', () => {
