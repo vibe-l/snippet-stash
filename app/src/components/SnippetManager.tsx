@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Plus } from "lucide-react";
-import SearchAndFilter from "./SearchAndFilter";
 import SnippetList from "./SnippetList";
 import TagManager from "./TagManager";
+import ControlPanel from "./ControlPanel";
 import type { Snippet } from "@/lib/zero-schema.gen";
 import FlexSearch from "flexsearch";
 import { useToast } from "@/hooks/use-toast";
@@ -218,23 +216,10 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
 
   return (
     <div className="space-y-6">
-      <Card className="p-6">
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between mb-6">
-          <div className="flex gap-2">
-            <Button onClick={addNewSnippet} className="flex items-center gap-2" data-testid="add-new-snippet-button">
-              <Plus className="w-4 h-4" />
-              Add Snippet
-            </Button>
-            <Button variant="outline" onClick={() => setShowTagManager(true)}>
-              Manage Tags
-            </Button>
-          </div>
-          <div className="text-sm text-muted-foreground">
-            {filteredSnippets.length} of {snippets.length} snippets
-          </div>
-        </div>
-
-        <SearchAndFilter
+      <Card>
+        <ControlPanel
+          addNewSnippet={addNewSnippet}
+          setShowTagManager={setShowTagManager}
           searchText={effectiveSearchText}
           setSearchText={handleSearchTextChange}
           selectedTags={effectiveSelectedTags}
@@ -243,6 +228,8 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
           setFilterMode={handleFilterModeChange}
           availableTags={getAvailableTags()}
           onSearchSubmit={onSearchSubmit}
+          filteredSnippetsCount={filteredSnippets.length}
+          totalSnippetsCount={snippets.length}
         />
       </Card>
 
