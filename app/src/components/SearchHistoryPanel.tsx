@@ -70,7 +70,7 @@ const SearchHistoryPanel: React.FC<SearchHistoryPanelProps> = ({ onRestoreSearch
   };
 
   return (
-    <Sidebar collapsible="icon" className="border-r flex-shrink-0">
+    <Sidebar collapsible="icon" side="right" className="border-l flex-shrink-0">
       <SidebarHeader className="p-4 border-b">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">

@@ -57,8 +57,6 @@ const Index = () => {
 
   return (
     <SidebarProvider>
-      <SearchHistoryPanel onRestoreSearch={handleRestoreSearch} />
-      <SidebarRail />
       <SidebarInset>
         <div className="p-4">
           <div className="flex items-center gap-2 mb-6">
@@ -73,6 +71,8 @@ const Index = () => {
           </div>
         </div>
       </SidebarInset>
+      <SearchHistoryPanel onRestoreSearch={handleRestoreSearch} />
+      <SidebarRail />
     </SidebarProvider>
   );
 };
