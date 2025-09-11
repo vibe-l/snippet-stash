@@ -114,8 +114,6 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
       id: updatedSnippet.id,
       body: updatedSnippet.body,
       tags: updatedSnippet.tags,
-    }).catch(() => {
-      toast({ title: "Failed to update snippet", variant: "destructive" });
     });
   };
 
