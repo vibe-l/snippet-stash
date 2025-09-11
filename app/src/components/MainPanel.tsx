@@ -1,0 +1,36 @@
+import React from "react";
+import { 
+  Sidebar, 
+  SidebarContent, 
+  SidebarHeader, 
+  useSidebar
+} from "@/components/ui/sidebar";
+import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Menu } from "lucide-react";
+import SearchHistoryPanel from "./SearchHistoryPanel";
+import type { SearchHistory } from "@/lib/schema";
+
+interface MainPanelProps {
+  onRestoreSearch: (entry: SearchHistory) => void;
+}
+
+const MainPanel: React.FC<MainPanelProps> = ({ onRestoreSearch }) => {
+  return (
+    <Sidebar collapsible="icon" side="right" className="border-l flex-shrink-0">
+      <SidebarHeader className="p-4 border-b">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Menu className="w-4 h-4" />
+            <span className="font-semibold">Panel</span>
+          </div>
+        </div>
+      </SidebarHeader>
+      
+      <SidebarContent>
+        <SearchHistoryPanel onRestoreSearch={onRestoreSearch} />
+      </SidebarContent>
+    </Sidebar>
+  );
+};
+
+export default MainPanel;

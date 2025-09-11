@@ -4,9 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { 
-  Sidebar, 
-  SidebarContent, 
-  SidebarHeader, 
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -70,98 +67,90 @@ const SearchHistoryPanel: React.FC<SearchHistoryPanelProps> = ({ onRestoreSearch
   };
 
   return (
-    <Sidebar collapsible="icon" side="right" className="border-l flex-shrink-0">
-      <SidebarHeader className="p-4 border-b">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Search className="w-4 h-4" />
-            <span className="font-semibold">Search History</span>
-          </div>
-          {history.length > 0 && (
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={handleClearAll}
-              className="text-xs"
-            >
-              Clear All
-            </Button>
-          )}
-        </div>
-      </SidebarHeader>
-      
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Recent Searches</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {history.length === 0 ? (
-                <div className="p-4 text-center text-muted-foreground text-sm">
-                  <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p>No search history yet.</p>
-                  <p className="text-xs mt-1">Your searches will appear here.</p>
-                </div>
-              ) : (
-                history.map((entry) => (
-                  <SidebarMenuItem key={entry.id}>
-                    {state === "expanded" ? (
-                      <Card
-                        className="p-3 cursor-pointer hover:bg-accent transition-colors w-full"
-                        onClick={() => handleRestoreSearch(entry as SearchHistory)}
-                      >
-                        <div className="space-y-2">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1 min-w-0">
-                              {entry.query && (
-                                <p className="text-sm font-medium truncate">
-                                  "{entry.query}"
-                                </p>
-                              )}
-                              {entry.selected_tags.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {entry.selected_tags.map((tag: string, index: number) => (
-                                    <Badge key={index} variant="secondary" className="text-xs">
-                                      {tag}
-                                    </Badge>
-                                  ))}
-                                  <Badge variant="outline" className="text-xs">
-                                    {entry.filter_mode.toUpperCase()}
-                                  </Badge>
-                                </div>
-                              )}
+    <SidebarGroup>
+      <div className="flex items-center justify-between px-2 pb-2">
+        <SidebarGroupLabel>
+          <Search className="w-4 h-4 mr-2" />
+          Search History
+        </SidebarGroupLabel>
+        {history.length > 0 && (
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={handleClearAll}
+            className="text-xs h-6"
+          >
+            Clear All
+          </Button>
+        )}
+      </div>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {history.length === 0 ? (
+            <div className="p-4 text-center text-muted-foreground text-sm">
+              <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <p>No search history yet.</p>
+              <p className="text-xs mt-1">Your searches will appear here.</p>
+            </div>
+          ) : (
+            history.map((entry) => (
+              <SidebarMenuItem key={entry.id}>
+                {state === "expanded" ? (
+                  <Card
+                    className="p-3 cursor-pointer hover:bg-accent transition-colors w-full"
+                    onClick={() => handleRestoreSearch(entry as SearchHistory)}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          {entry.query && (
+                            <p className="text-sm font-medium truncate">
+                              "{entry.query}"
+                            </p>
+                          )}
+                          {entry.selected_tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {entry.selected_tags.map((tag: string, index: number) => (
+                                <Badge key={index} variant="secondary" className="text-xs">
+                                  {tag}
+                                </Badge>
+                              ))}
+                              <Badge variant="outline" className="text-xs">
+                                {entry.filter_mode.toUpperCase()}
+                              </Badge>
                             </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => handleDeleteEntry(entry.id, e)}
-                              className="h-6 w-6 p-0 shrink-0"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
-                          </div>
-                          
-                          <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <span>Score: {entry.score}</span>
-                            <span>{formatLastUsed(entry.last_used_at)}</span>
-                          </div>
+                          )}
                         </div>
-                      </Card>
-                    ) : (
-                      <SidebarMenuButton
-                        onClick={() => handleRestoreSearch(entry as SearchHistory)}
-                        tooltip={{children: entry.query || entry.selected_tags.join(', ')}}
-                      >
-                        <Search />
-                      </SidebarMenuButton>
-                    )}
-                  </SidebarMenuItem>
-                ))
-              )}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
-    </Sidebar>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => handleDeleteEntry(entry.id, e)}
+                          className="h-6 w-6 p-0 shrink-0"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                      
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>Score: {entry.score}</span>
+                        <span>{formatLastUsed(entry.last_used_at)}</span>
+                      </div>
+                    </div>
+                  </Card>
+                ) : (
+                  <SidebarMenuButton
+                    onClick={() => handleRestoreSearch(entry as SearchHistory)}
+                    tooltip={{children: entry.query || entry.selected_tags.join(', ')}}
+                  >
+                    <Search />
+                  </SidebarMenuButton>
+                )}
+              </SidebarMenuItem>
+            ))
+          )}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
   );
 };
 

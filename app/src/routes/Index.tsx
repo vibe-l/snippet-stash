@@ -1,7 +1,7 @@
 
 import { SidebarProvider, SidebarInset, SidebarTrigger, SidebarRail } from "@/components/ui/sidebar";
 import SnippetManager from "@/components/SnippetManager";
-import SearchHistoryPanel from "@/components/SearchHistoryPanel";
+import MainPanel from "@/components/MainPanel";
 import type { SearchHistory } from "@/lib/schema";
 import React, { useState } from "react";
 import { useZero } from "@rocicorp/zero/react";
@@ -71,7 +71,7 @@ const Index = () => {
           </div>
         </div>
       </SidebarInset>
-      <SearchHistoryPanel onRestoreSearch={handleRestoreSearch} />
+      <MainPanel onRestoreSearch={handleRestoreSearch} />
       <SidebarRail />
     </SidebarProvider>
   );
