@@ -61,7 +61,7 @@ const Index = () => {
         <div className="flex items-center gap-2 mb-6">
           <SidebarTrigger />
         </div>
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-6xl mx-auto mt-8">
           <SnippetManager
             externalSearchState={searchState}
             onSearchChange={handleSearchChange}
