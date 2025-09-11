@@ -6,22 +6,22 @@ const TestColors = () => {
       <h1 className="text-2xl font-bold mb-4">Color Test</h1>
       
       <div className="grid grid-cols-2 gap-4">
-        <div className="p-4 rounded bg-background text-foreground">
+        <div className="p-4 rounded bg-background text-foreground border">
           <h2 className="font-semibold">Background</h2>
           <p>Should be light pink (330 100% 98%)</p>
         </div>
         
-        <div className="p-4 rounded bg-card text-card-foreground">
+        <div className="p-4 rounded bg-card text-card-foreground border">
           <h2 className="font-semibold">Card</h2>
           <p>Should be light blue (200 100% 95%)</p>
         </div>
         
-        <div className="p-4 rounded bg-primary text-primary-foreground">
+        <div className="p-4 rounded bg-primary text-primary-foreground border">
           <h2 className="font-semibold">Primary</h2>
           <p>Should be light teal (180 100% 85%)</p>
         </div>
         
-        <div className="p-4 rounded bg-secondary text-secondary-foreground">
+        <div className="p-4 rounded bg-secondary text-secondary-foreground border">
           <h2 className="font-semibold">Secondary</h2>
           <p>Should be light yellow (60 100% 88%)</p>
         </div>
