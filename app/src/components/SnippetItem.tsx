@@ -99,7 +99,6 @@ const SnippetItem: React.FC<SnippetItemProps> = ({
       <div className="flex gap-4 h-48">
         {/* Left side - Snippet body */}
         <div className="flex-1 flex flex-col min-h-0">
-          <div className="text-sm font-medium text-muted-foreground mb-2">Snippet</div>
           {isEditing ? (
             <div className="flex-1 flex flex-col gap-2 min-h-0">
               <Textarea

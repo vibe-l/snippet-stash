@@ -26,16 +26,6 @@ const MainPanel: React.FC<MainPanelProps> = ({
   onSearchSubmit,
 }) => {
   return (
-    <>
-      <SidebarHeader className="p-4 border-b">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Menu className="w-4 h-4" />
-            <span className="font-semibold">Panel</span>
-          </div>
-        </div>
-      </SidebarHeader>
-      
       <SidebarContent>
         <SidebarControlPanel
           externalSearchState={externalSearchState}
@@ -44,7 +34,6 @@ const MainPanel: React.FC<MainPanelProps> = ({
         />
         <SearchHistoryPanel onRestoreSearch={onRestoreSearch} />
       </SidebarContent>
-    </>
   );
 };
 

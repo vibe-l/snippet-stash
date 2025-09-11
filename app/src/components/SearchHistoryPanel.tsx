@@ -69,10 +69,6 @@ const SearchHistoryPanel: React.FC<SearchHistoryPanelProps> = ({ onRestoreSearch
   return (
     <SidebarGroup>
       <div className="flex items-center justify-between px-2 pb-2">
-        <SidebarGroupLabel>
-          <Search className="w-4 h-4 mr-2" />
-          Search History
-        </SidebarGroupLabel>
         {history.length > 0 && (
           <Button 
             variant="ghost" 

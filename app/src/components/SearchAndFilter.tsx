@@ -71,8 +71,7 @@ const SearchAndFilter: React.FC<SearchAndFilterProps> = ({
             <PopoverTrigger asChild>
               <Button variant="outline" className="flex items-center gap-2 justify-between min-w-[120px]" data-testid="tags-filter-trigger-button">
                 <div className="flex items-center gap-2">
-                  <Filter className="w-4 h-4" />
-                  Tags ({selectedTags.length})
+                  ({selectedTags.length})
                 </div>
                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
