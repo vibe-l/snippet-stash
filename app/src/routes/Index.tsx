@@ -63,10 +63,6 @@ const Index = () => {
         <div className="p-4">
           <div className="flex items-center gap-2 mb-6">
             <SidebarTrigger />
-            <div className="text-center flex-1">
-              <h1 className="text-4xl font-bold mb-2">Snippet Manager</h1>
-              <p className="text-muted-foreground">Manage your text snippets with tags and search</p>
-            </div>
           </div>
           <div className="max-w-6xl mx-auto">
             <SnippetManager 
