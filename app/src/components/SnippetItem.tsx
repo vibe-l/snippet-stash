@@ -98,20 +98,20 @@ const SnippetItem: React.FC<SnippetItemProps> = ({
     <Card className="p-4 space-y-4" data-testid="snippet-item" data-snippet-id={snippet.id}>
       <div className="flex gap-4 h-48">
         {/* Left side - Snippet body */}
-        <div className="flex-1 space-y-2">
-          <div className="text-sm font-medium text-muted-foreground">Snippet</div>
+        <div className="flex-1 flex flex-col min-h-0">
+          <div className="text-sm font-medium text-muted-foreground mb-2">Snippet</div>
           {isEditing ? (
-            <div className="space-y-2 h-full flex flex-col">
+            <div className="flex-1 flex flex-col gap-2 min-h-0">
               <Textarea
                 value={editedBody}
                 onChange={(e) => setEditedBody(e.target.value)}
                 onKeyDown={handleKeyPress}
                 placeholder="Enter your snippet here..."
-                className="flex-1 resize-none"
+                className="flex-1 resize-none min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 hover:scrollbar-thumb-gray-400"
                 autoFocus
                 data-testid="snippet-body-input"
               />
-              <div className="flex gap-2">
+              <div className="flex gap-2 shrink-0">
                 <Button size="sm" onClick={handleSave} data-testid="save-snippet-button">
                   Save
                 </Button>
@@ -124,7 +124,7 @@ const SnippetItem: React.FC<SnippetItemProps> = ({
               </div>
             </div>
           ) : (
-            <div className="font-mono text-sm whitespace-pre-wrap bg-muted p-3 rounded border h-full overflow-auto" data-testid="snippet-body-display">
+            <div className="font-mono text-sm whitespace-pre-wrap bg-muted p-3 rounded border flex-1 overflow-y-auto min-h-0 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 hover:scrollbar-thumb-gray-400" data-testid="snippet-body-display">
               {snippet.body || "Empty snippet"}
             </div>
           )}
