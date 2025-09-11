@@ -1,11 +1,8 @@
 import React from "react";
 import { 
-  Sidebar, 
   SidebarContent, 
-  SidebarHeader, 
-  useSidebar
+  SidebarHeader
 } from "@/components/ui/sidebar";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Menu } from "lucide-react";
 import SearchHistoryPanel from "./SearchHistoryPanel";
 import SidebarControlPanel from "./SidebarControlPanel";
@@ -29,7 +26,7 @@ const MainPanel: React.FC<MainPanelProps> = ({
   onSearchSubmit,
 }) => {
   return (
-    <Sidebar collapsible="icon" side="right" className="border-l flex-shrink-0">
+    <>
       <SidebarHeader className="p-4 border-b">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -47,7 +44,7 @@ const MainPanel: React.FC<MainPanelProps> = ({
         />
         <SearchHistoryPanel onRestoreSearch={onRestoreSearch} />
       </SidebarContent>
-    </Sidebar>
+    </>
   );
 };
 

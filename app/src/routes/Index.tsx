@@ -1,5 +1,5 @@
 
-import { SidebarProvider, SidebarInset, SidebarTrigger, SidebarRail } from "@/components/ui/sidebar";
+import { Sidebar, SidebarTrigger } from "@/components/ui/sidebar";
 import SnippetManager from "@/components/SnippetManager";
 import MainPanel from "@/components/MainPanel";
 import type { SearchHistory } from "@/lib/schema";
@@ -56,30 +56,29 @@ const Index = () => {
   };
 
   return (
-    <SidebarProvider>
-      <SidebarInset>
-        <div className="p-4">
-          <div className="flex items-center gap-2 mb-6">
-            <SidebarTrigger />
-          </div>
-          <div className="max-w-6xl mx-auto">
-            <SnippetManager 
-              externalSearchState={searchState}
-              onSearchChange={handleSearchChange}
-              onSearchSubmit={handleSearchSubmit}
-              showControlPanel={false}
-            />
-          </div>
+    <div className="flex flex-1">
+      <main className="flex-1 p-4">
+        <div className="flex items-center gap-2 mb-6">
+          <SidebarTrigger />
         </div>
-      </SidebarInset>
-      <MainPanel 
-        onRestoreSearch={handleRestoreSearch} 
-        externalSearchState={searchState}
-        onSearchChange={handleSearchChange}
-        onSearchSubmit={handleSearchSubmit}
-      />
-      <SidebarRail />
-    </SidebarProvider>
+        <div className="max-w-6xl mx-auto">
+          <SnippetManager
+            externalSearchState={searchState}
+            onSearchChange={handleSearchChange}
+            onSearchSubmit={handleSearchSubmit}
+            showControlPanel={false}
+          />
+        </div>
+      </main>
+      <Sidebar collapsible="icon" side="right" className="border-l flex-shrink-0">
+        <MainPanel
+          onRestoreSearch={handleRestoreSearch}
+          externalSearchState={searchState}
+          onSearchChange={handleSearchChange}
+          onSearchSubmit={handleSearchSubmit}
+        />
+      </Sidebar>
+    </div>
   );
 };
 

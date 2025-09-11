@@ -1,3 +1,4 @@
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -14,13 +15,15 @@ const App = () => (
     disableTransitionOnChange
   >
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <Switch>
-        <Route path="/" component={Index} />
-        {/* All other routes will be caught by the NotFound component */}
-        <Route component={NotFound} />
-      </Switch>
+      <SidebarProvider>
+        <Toaster />
+        <Sonner />
+        <Switch>
+          <Route path="/" component={Index} />
+          {/* All other routes will be caught by the NotFound component */}
+          <Route component={NotFound} />
+        </Switch>
+      </SidebarProvider>
     </TooltipProvider>
   </ThemeProvider>
 );
