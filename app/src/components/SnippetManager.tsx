@@ -18,12 +18,14 @@ interface SnippetManagerProps {
   };
   onSearchChange?: (searchText: string, selectedTags: string[], filterMode: "and" | "or") => void;
   onSearchSubmit?: () => void;
+  showControlPanel?: boolean;
 }
 
 const SnippetManager: React.FC<SnippetManagerProps> = ({ 
   externalSearchState, 
   onSearchChange,
-  onSearchSubmit
+  onSearchSubmit,
+  showControlPanel = true
 }) => {
   const [searchText, setSearchText] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -45,6 +47,7 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
       setFilterMode(externalSearchState.filterMode);
     }
   }, [externalSearchState]);
+
 
   // Fetch snippets from database using Zero
   // const snippetsQuery = zero.query.snippets.orderBy("updated_at", "desc");
@@ -68,28 +71,28 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
     return index;
   }, [snippets]);
 
-  const handleSearchTextChange = (newSearchText: string) => {
+  const handleSearchTextChange = useMemo(() => (newSearchText: string) => {
     setSearchText(newSearchText);
     if (onSearchChange) {
       onSearchChange(newSearchText, effectiveSelectedTags, effectiveFilterMode);
     }
-  };
+  }, [onSearchChange, effectiveSelectedTags, effectiveFilterMode]);
 
-  const handleSelectedTagsChange = (newSelectedTags: string[]) => {
+  const handleSelectedTagsChange = useMemo(() => (newSelectedTags: string[]) => {
     setSelectedTags(newSelectedTags);
     if (onSearchChange) {
       onSearchChange(effectiveSearchText, newSelectedTags, effectiveFilterMode);
     }
-  };
+  }, [onSearchChange, effectiveSearchText, effectiveFilterMode]);
 
-  const handleFilterModeChange = (newFilterMode: "and" | "or") => {
+  const handleFilterModeChange = useMemo(() => (newFilterMode: "and" | "or") => {
     setFilterMode(newFilterMode);
     if (onSearchChange) {
       onSearchChange(effectiveSearchText, effectiveSelectedTags, newFilterMode);
     }
-  };
+  }, [onSearchChange, effectiveSearchText, effectiveSelectedTags]);
 
-  const addNewSnippet = () => {
+  const addNewSnippet = useMemo(() => () => {
     // Generate a unique ID using nanoid
     const snippetId = nanoid();
     const now = new Date();
@@ -105,7 +108,7 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
     }).catch(() => {
       toast({ title: "Failed to create snippet", variant: "destructive" });
     });
-  };
+  }, [zero, toast]);
 
   const updateSnippet = (updatedSnippet: Snippet) => {
     zero.mutate.updateSnippet({
@@ -190,7 +193,7 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
   }, [typedSnippets, effectiveSearchText, effectiveSelectedTags, effectiveFilterMode, searchIndex]);
 
   // Get available tags for "and" mode filtering
-  const getAvailableTags = () => {
+  const getAvailableTags = useMemo(() => {
     if (effectiveFilterMode === "or" || effectiveSelectedTags.length === 0) {
       return allTags;
     }
@@ -212,27 +215,30 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
     return Array.from(new Set(
       snippetsWithSelectedTags.flatMap(snippet => snippet.tags || [])
     )).sort();
-  };
+  }, [effectiveFilterMode, effectiveSelectedTags, allTags, typedSnippets, effectiveSearchText, searchIndex]);
+
 
   return (
     <div className="space-y-6">
-      <Card>
-        <ControlPanel
-          addNewSnippet={addNewSnippet}
-          setShowTagManager={setShowTagManager}
-          searchText={effectiveSearchText}
-          setSearchText={handleSearchTextChange}
-          selectedTags={effectiveSelectedTags}
-          setSelectedTags={handleSelectedTagsChange}
-          filterMode={effectiveFilterMode}
-          setFilterMode={handleFilterModeChange}
-          availableTags={getAvailableTags()}
-          onSearchSubmit={onSearchSubmit}
-          filteredSnippetsCount={filteredSnippets.length}
-          totalSnippetsCount={snippets.length}
-        />
-      </Card>
-
+      {showControlPanel && (
+        <Card>
+          <ControlPanel
+            addNewSnippet={addNewSnippet}
+            setShowTagManager={setShowTagManager}
+            searchText={effectiveSearchText}
+            setSearchText={handleSearchTextChange}
+            selectedTags={effectiveSelectedTags}
+            setSelectedTags={handleSelectedTagsChange}
+            filterMode={effectiveFilterMode}
+            setFilterMode={handleFilterModeChange}
+            availableTags={getAvailableTags}
+            onSearchSubmit={onSearchSubmit}
+            filteredSnippetsCount={filteredSnippets.length}
+            totalSnippetsCount={snippets.length}
+          />
+        </Card>
+      )}
+      
       <SnippetList
         snippets={filteredSnippets}
         isLoading={isLoading}

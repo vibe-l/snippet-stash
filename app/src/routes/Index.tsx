@@ -67,11 +67,17 @@ const Index = () => {
               externalSearchState={searchState}
               onSearchChange={handleSearchChange}
               onSearchSubmit={handleSearchSubmit}
+              showControlPanel={false}
             />
           </div>
         </div>
       </SidebarInset>
-      <MainPanel onRestoreSearch={handleRestoreSearch} />
+      <MainPanel 
+        onRestoreSearch={handleRestoreSearch} 
+        externalSearchState={searchState}
+        onSearchChange={handleSearchChange}
+        onSearchSubmit={handleSearchSubmit}
+      />
       <SidebarRail />
     </SidebarProvider>
   );
