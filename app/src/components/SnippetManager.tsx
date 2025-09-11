@@ -5,11 +5,12 @@ import { Plus } from "lucide-react";
 import SearchAndFilter from "./SearchAndFilter";
 import SnippetList from "./SnippetList";
 import TagManager from "./TagManager";
-import type { Snippet } from "@/lib/schema";
+import type { Snippet } from "@/lib/zero-schema.gen";
 import FlexSearch from "flexsearch";
 import { useToast } from "@/hooks/use-toast";
 import { useZero, useQuery } from "@rocicorp/zero/react";
 import { nanoid } from "nanoid";
+import { mySnippets } from "@/lib/syncedQueries";
 
 interface SnippetManagerProps {
   externalSearchState?: {
@@ -48,8 +49,8 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
   }, [externalSearchState]);
 
   // Fetch snippets from database using Zero
-  const snippetsQuery = zero.query.snippets.orderBy("updated_at", "desc");
-  const [snippets = [], snippetsResult] = useQuery(snippetsQuery);
+  // const snippetsQuery = zero.query.snippets.orderBy("updated_at", "desc");
+  const [snippets = [], snippetsResult] = useQuery(mySnippets(1));
   const typedSnippets = snippets as Snippet[];
   const isLoading = snippetsResult.type !== "complete";
 
@@ -61,7 +62,8 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
     });
     
     snippets.forEach((snippet, i) => {
-      const searchableText = `${snippet.body} ${snippet.tags.join(" ")}`;
+      const tags = snippet.tags || [];
+      const searchableText = `${snippet.body} ${tags.join(" ")}`;
       index.add(i, searchableText);
     });
     
@@ -92,10 +94,14 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
   const addNewSnippet = () => {
     // Generate a unique ID using nanoid
     const snippetId = nanoid();
+    const now = new Date();
     zero.mutate.snippets.insert({
       id: snippetId,
       body: "",
       tags: [],
+      author_id: 1, // Using hardcoded author_id for anonymous user
+      created_at: now,
+      updated_at: now,
     }).then(() => {
       toast({ title: "Snippet created successfully" });
     }).catch(() => {
@@ -104,12 +110,10 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
   };
 
   const updateSnippet = (updatedSnippet: Snippet) => {
-    zero.mutate.snippets.update({
+    zero.mutate.updateSnippet({
       id: updatedSnippet.id,
       body: updatedSnippet.body,
       tags: updatedSnippet.tags,
-    }).then(() => {
-      toast({ title: "Snippet updated successfully" });
     }).catch(() => {
       toast({ title: "Failed to update snippet", variant: "destructive" });
     });
@@ -164,7 +168,7 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
   };
 
   // Get all unique tags
-  const allTags = Array.from(new Set(snippets.flatMap(snippet => snippet.tags))).sort();
+  const allTags = Array.from(new Set(snippets.flatMap(snippet => snippet.tags || []))).sort();
 
   // Filter snippets using FlexSearch and tags
   const filteredSnippets = useMemo(() => {
@@ -179,9 +183,10 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
     // Apply tag filtering
     if (effectiveSelectedTags.length > 0) {
       results = results.filter(snippet => {
+        const tags = snippet.tags || [];
         return effectiveFilterMode === "or" 
-          ? effectiveSelectedTags.some(tag => snippet.tags.includes(tag))
-          : effectiveSelectedTags.every(tag => snippet.tags.includes(tag));
+          ? effectiveSelectedTags.some(tag => tags.includes(tag))
+          : effectiveSelectedTags.every(tag => tags.includes(tag));
       });
     }
 
@@ -203,12 +208,13 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
       baseSnippets = searchResults.map(index => typedSnippets[index as number]);
     }
     
-    const snippetsWithSelectedTags = baseSnippets.filter(snippet =>
-      effectiveSelectedTags.every(tag => snippet.tags.includes(tag))
-    );
+    const snippetsWithSelectedTags = baseSnippets.filter(snippet => {
+      const tags = snippet.tags || [];
+      return effectiveSelectedTags.every(tag => tags.includes(tag));
+    });
     
     return Array.from(new Set(
-      snippetsWithSelectedTags.flatMap(snippet => snippet.tags)
+      snippetsWithSelectedTags.flatMap(snippet => snippet.tags || [])
     )).sort();
   };
 

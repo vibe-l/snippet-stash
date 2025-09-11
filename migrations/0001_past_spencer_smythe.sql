@@ -1,0 +1,1 @@
+ALTER TABLE "snippets" ADD COLUMN "author_id" integer;

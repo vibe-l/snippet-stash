@@ -4,7 +4,6 @@ import { TextPreprocessingService, WordPair } from './TextPreprocessingService.j
 import { WordCountManager } from './WordCountManager.js';
 import { WordSelectionStrategy, WordData, WordSelectionResult } from './WordSelectionStrategy.js';
 
-
 export class DocumentIDGenerator {
   private minIdLength: number;
   private maxMeanWordCount: number | null;
@@ -52,13 +51,10 @@ export class DocumentIDGenerator {
       } else if (this.verboseDocuments.size === 0) {
         // If no specific documents specified, log everything (original behavior)
         console.log(...args);
+
       }
     }
   }
-
-
-
-
 
   private generateId(document: string, documentIndex: number): string {
     this.currentDocumentIndex = documentIndex;

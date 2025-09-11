@@ -12,6 +12,7 @@ export const snippets = pgTable("snippets", {
   id: text("id").primaryKey(),
   body: text("body").notNull(),
   tags: jsonb("tags").$type<string[]>().notNull().default([]),
+  author_id: integer("author_id").notNull().references(() => users.id),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
   used_at: timestamp("used_at"),

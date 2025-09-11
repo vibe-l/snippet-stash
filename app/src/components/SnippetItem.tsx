@@ -35,7 +35,6 @@ const SnippetItem: React.FC<SnippetItemProps> = ({
     onUpdate({
       ...snippet,
       body: editedBody,
-      updated_at: new Date(),
     });
     setIsEditing(false);
     if (snippet.body === "" && editedBody !== "") {
@@ -73,7 +72,6 @@ const SnippetItem: React.FC<SnippetItemProps> = ({
       onUpdate({
         ...snippet,
         tags: [...snippet.tags, tagName.trim()],
-        updated_at: new Date(),
       });
     }
     setTagPickerOpen(false);
@@ -83,7 +81,6 @@ const SnippetItem: React.FC<SnippetItemProps> = ({
     onUpdate({
       ...snippet,
       tags: snippet.tags.filter(tag => tag !== tagToRemove),
-      updated_at: new Date(),
     });
   };
 

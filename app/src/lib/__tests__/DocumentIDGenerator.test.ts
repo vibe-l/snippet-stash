@@ -49,6 +49,7 @@ describe('DocumentIDGenerator', () => {
     it('should throw error for invalid verbose parameter', () => {
       expect(() => new DocumentIDGenerator(30, null, 'invalid' as any)).toThrow('verbose must be a boolean');
     });
+    
   });
 
   describe('generateIds', () => {

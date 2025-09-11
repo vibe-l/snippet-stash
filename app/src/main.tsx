@@ -8,7 +8,7 @@ import { schema } from './lib/zero-schema.js';
 import { createMutators } from './lib/mutators.js';
 
 // The server URL will be loaded from environment variables.
-const server = import.meta.env.VITE_PUBLIC_SERVER;
+const server = 'http://localhost:4848'; // import.meta.env.VITE_PUBLIC_SERVER;
 
 const zero = new Zero({
   userID: "anon",

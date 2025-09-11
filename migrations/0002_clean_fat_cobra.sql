@@ -1,0 +1,2 @@
+ALTER TABLE "snippets" ALTER COLUMN "author_id" SET NOT NULL;--> statement-breakpoint
+ALTER TABLE "snippets" ADD CONSTRAINT "snippets_author_id_users_id_fk" FOREIGN KEY ("author_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;

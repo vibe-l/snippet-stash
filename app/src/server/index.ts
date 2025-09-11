@@ -5,12 +5,14 @@ import {
   ZQLDatabase,
   PostgresJSConnection,
   type ServerTransaction,
+  handleGetQueriesRequest,
 } from '@rocicorp/zero/pg';
 import postgres from 'postgres';
 import { schema } from '../lib/zero-schema.js';
 import { createMutators as createClientMutators } from '../lib/mutators.js';
 import type { InsertSearchHistory } from '../lib/schema.js';
 import { nanoid } from 'nanoid';
+import { getQuery } from './queries.js'
 
 // Initialize the database connection.
 // The connection string should be in the ZERO_UPSTREAM_DB environment variable.
@@ -66,6 +68,10 @@ function createServerMutators() {
 
 export const app = new Hono().basePath('/api');
 
+app.post("/get-queries", async (c) => {
+  return await c.json(await handleGetQueriesRequest(getQuery, schema, c.req.raw));
+});
+
 app.post('/mutate', async (c) => {
   // Here you would typically get authentication data from the request.
   const mutators = createServerMutators();
@@ -87,3 +93,5 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     port
   });
 }
+
+
