@@ -132,10 +132,6 @@ const SnippetItem: React.FC<SnippetItemProps> = ({
         {/* Right side - Tags and metadata */}
         <div className="w-80 space-y-4 border-l pl-4">
           <div className="space-y-2">
-            <div className="flex items-center gap-1 text-sm font-medium text-muted-foreground">
-              <Tag className="w-3 h-3" />
-              Tags
-            </div>
             <div className="flex flex-wrap gap-2" data-testid="snippet-tags-display">
               {snippet.tags.map(tag => (
                 <Badge key={tag} variant="secondary" className="flex items-center gap-1" data-testid="snippet-tag" data-tag-name={tag}>
