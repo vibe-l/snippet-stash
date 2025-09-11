@@ -1,5 +1,5 @@
 
-import { Sidebar, SidebarTrigger } from "@/components/ui/sidebar";
+import { Sidebar } from "@/components/ui/sidebar";
 import SnippetManager from "@/components/SnippetManager";
 import MainPanel from "@/components/MainPanel";
 import type { SearchHistory } from "@/lib/schema";
@@ -58,10 +58,7 @@ const Index = () => {
   return (
     <div className="flex flex-1">
       <main className="flex-1 p-4">
-        <div className="flex items-center gap-2 mb-6">
-          <SidebarTrigger />
-        </div>
-        <div className="max-w-6xl mx-auto mt-8">
+        <div className="max-w-6xl mx-auto">
           <SnippetManager
             externalSearchState={searchState}
             onSearchChange={handleSearchChange}

@@ -219,7 +219,7 @@ const SnippetManager: React.FC<SnippetManagerProps> = ({
 
 
   return (
-    <div className="space-y-6">
+    <div>
       {showControlPanel && (
         <Card>
           <ControlPanel
